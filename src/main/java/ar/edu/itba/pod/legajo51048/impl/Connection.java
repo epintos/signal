@@ -12,12 +12,12 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
-public class ChatNode extends ReceiverAdapter {
+public class Connection extends ReceiverAdapter {
 	private JChannel channel;
 	private String clusterName = null;
 	private Set<Address> users = new HashSet<Address>();;
 
-	public ChatNode(String clusterName) {
+	public Connection(String clusterName) {
 		try {
 			this.channel = new JChannel();
 			this.clusterName = clusterName;
@@ -83,7 +83,6 @@ public class ChatNode extends ReceiverAdapter {
 
 	public void disconnect() {
 		channel.disconnect();
-		channel.close();
 	}
 
 	public String getClusterName() {

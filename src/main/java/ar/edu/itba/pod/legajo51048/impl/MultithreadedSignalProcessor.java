@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import ar.edu.itba.pod.api.NodeStats;
@@ -26,7 +27,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private final int threadsQty;
 
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
-	private String cluster = null;
+	private Connection connection = null;
+	private String cluster;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
 		this.signals = new LinkedBlockingQueue<Signal>();
@@ -36,14 +38,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public void join(String clusterName) throws RemoteException {
-		if (cluster != null) {
-			throw new IllegalStateException("Already in cluster " + cluster);
+		if (connection != null) {
+			throw new IllegalStateException("Already in cluster "
+					+ connection.getClusterName());
 		}
 		if (!signals.isEmpty()) {
 			throw new IllegalStateException(
 					"Can't join a cluster because there are signals already stored");
 		}
-		this.cluster = clusterName;
+		this.connection = new Connection(clusterName);
 
 	}
 
@@ -51,13 +54,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	public void exit() throws RemoteException {
 		signals.clear();
 		receivedSignals = new AtomicInteger(0);
-		cluster = null;
+		connection = null;
 	}
 
 	@Override
 	public NodeStats getStats() throws RemoteException {
-		// TODO Auto-generated method stub
-		return null;
+		return new NodeStats("cluster " + connection.getClusterName(),
+				receivedSignals.longValue(), signals.size(), 0, true);
 	}
 
 	@Override
@@ -75,7 +78,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		List<Callable<Result>> tasks = new ArrayList<Callable<Result>>();
 		try {
 			for (int i = 0; i < threadsQty; i++) {
-				tasks.add(new Worker(signal, signals));
+				//Generate a copy of the signals so they are not lost
+				BlockingQueue<Signal> copy = new LinkedBlockingQueue<Signal>(signals);
+				tasks.add(new Worker(signal, copy));
 			}
 			List<Future<Result>> futures = executor.invokeAll(tasks);
 			Result result = new Result(signal);
@@ -85,6 +90,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					result = result.include(item);
 				}
 			}
+			receivedSignals.incrementAndGet();
 			return result;
 		} catch (InterruptedException e) {
 			e.printStackTrace();
@@ -109,7 +115,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		@Override
 		public Result call() throws Exception {
 			Result result = new Result(workerSignal);
-			
+
 			while (true) {
 				Signal s = workerSignals.poll();
 				if (s == null) {
