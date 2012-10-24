@@ -12,12 +12,16 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
+import ar.edu.itba.pod.api.Signal;
+
 public class Connection extends ReceiverAdapter {
 	private JChannel channel;
 	private String clusterName = null;
-	private Set<Address> users = new HashSet<Address>();;
+	private Set<Address> users = new HashSet<Address>();
+	private MultithreadedSignalProcessor processor;
 
-	public Connection(String clusterName) {
+	public Connection(String clusterName, MultithreadedSignalProcessor processor) {
+		this.processor = processor;
 		try {
 			this.channel = new JChannel();
 			this.clusterName = clusterName;
@@ -32,26 +36,23 @@ public class Connection extends ReceiverAdapter {
 		try {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
+			users.add(channel.getAddress());
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 
-	public void broadcastMessage(String msg) {
-		this.sendMessageTo(null, msg);
+	public void broadcastMessage(Signal signal) {
+		this.sendMessageTo(null, signal);
 	}
 
-	public void sendMessageTo(Address addr, String msg) {
+	public void sendMessageTo(Address address, Signal signal) {
 		try {
-			this.channel.send(new Message(addr, msg));
+			this.channel.send(new Message(address, signal));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-	}
-
-	public void doNotReceiveOwnMessages() {
-		channel.setDiscardOwnMessages(true);
 	}
 
 	@Override
@@ -63,12 +64,14 @@ public class Connection extends ReceiverAdapter {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private void searchFallenNode(List<Address> newMembers) {
 		Collection<Address> disjunction = CollectionUtils.disjunction(users,
 				newMembers);
 		users.removeAll(disjunction);
 	}
 
+	@SuppressWarnings("unchecked")
 	private void searchNewNode(List<Address> newMembers) {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
@@ -77,8 +80,11 @@ public class Connection extends ReceiverAdapter {
 
 	@Override
 	public void receive(Message msg) {
-		// TODO Auto-generated method stub
-		super.receive(msg);
+		if (msg.getObject() instanceof Backup) {
+			processor.addBackup((Backup) msg.getObject());
+		} else if (msg.getObject() instanceof Signal) {
+			processor.addSignal((Signal) msg.getObject());
+		} 
 	}
 
 	public void disconnect() {
@@ -87,5 +93,9 @@ public class Connection extends ReceiverAdapter {
 
 	public String getClusterName() {
 		return this.clusterName;
+	}
+
+	public Set<Address> getUsers() {
+		return this.users;
 	}
 }

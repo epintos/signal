@@ -3,6 +3,8 @@ package ar.edu.itba.pod.legajo51048.impl;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -10,15 +12,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.NodeStats;
 import ar.edu.itba.pod.api.Result;
+import ar.edu.itba.pod.api.Result.Item;
 import ar.edu.itba.pod.api.SPNode;
 import ar.edu.itba.pod.api.Signal;
 import ar.edu.itba.pod.api.SignalProcessor;
-import ar.edu.itba.pod.api.Result.Item;
 
 public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
@@ -28,7 +31,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
 	private Connection connection = null;
-	private String cluster;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
 		this.signals = new LinkedBlockingQueue<Signal>();
@@ -46,7 +48,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			throw new IllegalStateException(
 					"Can't join a cluster because there are signals already stored");
 		}
-		this.connection = new Connection(clusterName);
+		this.connection = new Connection(clusterName, this);
 
 	}
 
@@ -65,7 +67,22 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public void add(Signal signal) throws RemoteException {
-		signals.add(signal);
+		Set<Address> users = connection.getUsers();
+		Random random = new Random();
+		int r = random.nextInt(users.size());
+		int i = 0;
+		for (Address address : users) {
+			if (i++ == r) {
+				connection.sendMessageTo(address, signal);
+			}
+		}
+	}
+
+	protected void addSignal(Signal signal) {
+		this.signals.add(signal);
+	}
+
+	protected void addBackup(Backup backup) {
 
 	}
 
@@ -78,8 +95,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		List<Callable<Result>> tasks = new ArrayList<Callable<Result>>();
 		try {
 			for (int i = 0; i < threadsQty; i++) {
-				//Generate a copy of the signals so they are not lost
-				BlockingQueue<Signal> copy = new LinkedBlockingQueue<Signal>(signals);
+				// Generate a copy of the signals so they are not lost
+				BlockingQueue<Signal> copy = new LinkedBlockingQueue<Signal>(
+						signals);
 				tasks.add(new Worker(signal, copy));
 			}
 			List<Future<Result>> futures = executor.invokeAll(tasks);
