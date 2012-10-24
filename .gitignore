@@ -1,10 +1,6 @@
-.classpath
-.project
-.settings/
-*.jar
-.DS_STORE
 target/*
-bin
-logs
-lib
-
+/.settings
+/.classpath
+/.project
+.DS_STORE
+*.jar
