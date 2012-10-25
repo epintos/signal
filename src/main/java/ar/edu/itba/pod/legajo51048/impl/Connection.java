@@ -54,7 +54,7 @@ public class Connection extends ReceiverAdapter {
 			e.printStackTrace();
 		}
 	}
-	
+
 	@Override
 	public void viewAccepted(View view) {
 		System.out.println(view);
@@ -69,6 +69,9 @@ public class Connection extends ReceiverAdapter {
 	private void searchFallenNode(List<Address> newMembers) {
 		Collection<Address> disjunction = CollectionUtils.disjunction(users,
 				newMembers);
+		for (Address address : disjunction) {
+			processor.distributeBackups(address);
+		}
 		users.removeAll(disjunction);
 	}
 
@@ -76,6 +79,7 @@ public class Connection extends ReceiverAdapter {
 	private void searchNewNode(List<Address> newMembers) {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
+		processor.distributeSignals();
 		users.addAll(disjunction);
 	}
 
@@ -85,7 +89,7 @@ public class Connection extends ReceiverAdapter {
 			processor.addBackup((Backup) msg.getObject());
 		} else if (msg.getObject() instanceof Signal) {
 			processor.addSignal((Signal) msg.getObject());
-		} 
+		}
 	}
 
 	public void disconnect() {

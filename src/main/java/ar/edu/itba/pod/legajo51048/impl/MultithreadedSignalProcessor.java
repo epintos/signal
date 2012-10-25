@@ -2,9 +2,10 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -12,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jgroups.Address;
@@ -26,14 +28,20 @@ import ar.edu.itba.pod.api.SignalProcessor;
 public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	private final BlockingQueue<Signal> signals;
+	private final List<Backup> backups;
 	private final ExecutorService executor;
 	private final int threadsQty;
 
+	private AtomicBoolean degraded = new AtomicBoolean(false);
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
 	private Connection connection = null;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
+		// private final Multimap<Address, Signal> backups;
+		// ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
+		// this.backups = Multimaps.synchronizedListMultimap(list);
 		this.signals = new LinkedBlockingQueue<Signal>();
+		this.backups = new LinkedList<Backup>();
 		this.executor = Executors.newFixedThreadPool(threadsQty);
 		this.threadsQty = threadsQty;
 	}
@@ -62,15 +70,16 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	@Override
 	public NodeStats getStats() throws RemoteException {
 		return new NodeStats("cluster " + connection.getClusterName(),
-				receivedSignals.longValue(), signals.size(), 0, true);
+				receivedSignals.longValue(), signals.size(), backups.size(),
+				true);
 	}
 
 	@Override
 	public void add(Signal signal) throws RemoteException {
-		distributeSignalAndBackup(signal);
+		distributeNewSignal(signal);
 	}
 
-	private void distributeSignalAndBackup(Signal signal) {
+	private void distributeNewSignal(Signal signal) {
 		List<Address> users = connection.getMembers();
 		int limit = users.size();
 		int sigRandom = 0;
@@ -80,7 +89,44 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			;
 		connection.sendMessageTo(users.get(sigRandom), signal);
 		connection.sendMessageTo(users.get(backRandom),
-				new Backup(users.get(backRandom), signal));
+				new Backup(users.get(sigRandom), signal));
+	}
+
+	protected void distributeBackups(Address address) {
+		degraded.set(true);
+		List<Backup> backups = new ArrayList<Backup>();
+		Iterator<Backup> it = backups.iterator();
+		while (it.hasNext()) {
+			Backup backup = it.next();
+			if (backup.getAddress().equals(address)) {
+				backups.add(backup);
+			}
+			it.remove();
+		}
+
+		for (Backup backup : backups) {
+			distribute(address, backup.getSignal());
+		}
+		degraded.set(false);
+	}
+
+	protected void distributeSignals() {
+		degraded.set(true);
+		boolean finished = false;
+		synchronized (signals) {
+			while (!finished) {
+				Signal signal = signals.poll();
+				if (signal == null) {
+					finished = true;
+				}
+				distributeNewSignal(signal);
+			}
+		}
+		degraded.set(false);
+	}
+
+	private void distribute(Address address, Object obj) {
+		connection.sendMessageTo(address, obj);
 	}
 
 	private int random(int limit) {
@@ -93,7 +139,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	}
 
 	protected void addBackup(Backup backup) {
-
+		this.backups.add(backup);
 	}
 
 	@Override

@@ -6,7 +6,7 @@ import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
 
-public class Backup implements Serializable{
+public class Backup implements Serializable {
 
 	private Address address;
 	private Signal signal;
@@ -14,5 +14,13 @@ public class Backup implements Serializable{
 	public Backup(Address address, Signal signal) {
 		this.address = address;
 		this.signal = signal;
+	}
+
+	public Address getAddress() {
+		return address;
+	}
+
+	public Signal getSignal() {
+		return signal;
 	}
 }
