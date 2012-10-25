@@ -12,7 +12,7 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
-import ar.edu.itba.pod.api.Signal;
+import ar.edu.itba.pod.api.Result;
 
 public class Connection extends ReceiverAdapter {
 	private JChannel channel;
@@ -43,8 +43,8 @@ public class Connection extends ReceiverAdapter {
 		}
 	}
 
-	public void broadcastMessage(Signal signal) {
-		this.sendMessageTo(null, signal);
+	public void broadcastMessage(Object obj) {
+		this.sendMessageTo(null, obj);
 	}
 
 	public void sendMessageTo(Address address, Object obj) {
@@ -85,10 +85,24 @@ public class Connection extends ReceiverAdapter {
 
 	@Override
 	public void receive(Message msg) {
-		if (msg.getObject() instanceof Backup) {
-			processor.addBackup((Backup) msg.getObject());
-		} else if (msg.getObject() instanceof Signal) {
-			processor.addSignal((Signal) msg.getObject());
+		if (msg.getObject() instanceof SignalMessage) {
+			SignalMessage message = (SignalMessage) msg.getObject();
+			if (message.isBackup()) {
+				processor.addBackup(message.getAddress(), message.getSignal());
+			} else if (message.isBroadcastFind()) {
+				processor.findMySimilars(msg.getSrc(), message.getSignal());
+			} else {
+				processor.addSignal(message.getSignal());
+			}
+		} else if (msg.getObject() instanceof String) {
+			String str = (String) msg.getObject();
+			switch (str) {
+			case MultithreadedSignalProcessor.EXIT_MESSAGE:
+				processor.removeBackups(msg.getSrc());
+				break;
+			}
+		} else if (msg.getObject() instanceof Result) {
+			processor.addResult((Result)msg.getObject());
 		}
 	}
 

@@ -2,8 +2,6 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -25,30 +23,34 @@ import ar.edu.itba.pod.api.SPNode;
 import ar.edu.itba.pod.api.Signal;
 import ar.edu.itba.pod.api.SignalProcessor;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+
 public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	private final BlockingQueue<Signal> signals;
-	private final List<Backup> backups;
+	private final Multimap<Address, Signal> backups;
 	private final ExecutorService executor;
 	private final int threadsQty;
+	public static final String EXIT_MESSAGE = "EXIT_MESSAGE";
+	public static final String FIND_SIMILAR = "FIND_SIMILAR";
 
 	private AtomicBoolean degraded = new AtomicBoolean(false);
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
 	private Connection connection = null;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
-		// private final Multimap<Address, Signal> backups;
-		// ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
-		// this.backups = Multimaps.synchronizedListMultimap(list);
+		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
+		this.backups = Multimaps.synchronizedListMultimap(list);
 		this.signals = new LinkedBlockingQueue<Signal>();
-		this.backups = new LinkedList<Backup>();
 		this.executor = Executors.newFixedThreadPool(threadsQty);
 		this.threadsQty = threadsQty;
 	}
 
 	@Override
 	public void join(String clusterName) throws RemoteException {
-		if (connection != null) {
+		if (connection.getClusterName() != null) {
 			throw new IllegalStateException("Already in cluster "
 					+ connection.getClusterName());
 		}
@@ -64,7 +66,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	public void exit() throws RemoteException {
 		signals.clear();
 		receivedSignals = new AtomicInteger(0);
-		connection = null;
+		if (connection != null) {
+			connection.broadcastMessage(EXIT_MESSAGE);
+			connection.disconnect();
+		}
 	}
 
 	@Override
@@ -87,25 +92,21 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		while (limit != 1
 				&& (sigRandom = random(limit)) == (backRandom = random(limit)))
 			;
-		connection.sendMessageTo(users.get(sigRandom), signal);
+		connection.sendMessageTo(users.get(sigRandom),
+				new SignalMessage(signal));
 		connection.sendMessageTo(users.get(backRandom),
-				new Backup(users.get(sigRandom), signal));
+				new SignalMessage(users.get(sigRandom), signal));
+	}
+
+	protected void removeBackups(Address address) {
+		backups.removeAll(address);
 	}
 
 	protected void distributeBackups(Address address) {
 		degraded.set(true);
-		List<Backup> backups = new ArrayList<Backup>();
-		Iterator<Backup> it = backups.iterator();
-		while (it.hasNext()) {
-			Backup backup = it.next();
-			if (backup.getAddress().equals(address)) {
-				backups.add(backup);
-			}
-			it.remove();
-		}
-
-		for (Backup backup : backups) {
-			distribute(address, backup.getSignal());
+		for (Signal signal : backups.get(address)) {
+			distribute(address, new SignalMessage(signal));
+			backups.remove(address, signal);
 		}
 		degraded.set(false);
 	}
@@ -138,8 +139,16 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		this.signals.add(signal);
 	}
 
-	protected void addBackup(Backup backup) {
-		this.backups.add(backup);
+	protected void addBackup(Address address, Signal signal) {
+		this.backups.put(address, signal);
+	}
+
+	protected void findMySimilars(Address address, Signal signal) {
+		Result result = findSimilarToAux(signal);
+		connection.sendMessageTo(address, result);
+	}
+
+	protected void addResult(Result result){
 	}
 
 	@Override
@@ -148,6 +157,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			throw new IllegalArgumentException("Signal cannot be null");
 		}
 
+		connection.broadcastMessage(new SignalMessage(signal, true));
+
+		return findSimilarToAux(signal);
+	}
+
+	private Result findSimilarToAux(Signal signal) {
 		List<Callable<Result>> tasks = new ArrayList<Callable<Result>>();
 		try {
 			for (int i = 0; i < threadsQty; i++) {
