@@ -47,16 +47,17 @@ public class Connection extends ReceiverAdapter {
 		this.sendMessageTo(null, signal);
 	}
 
-	public void sendMessageTo(Address address, Signal signal) {
+	public void sendMessageTo(Address address, Object obj) {
 		try {
-			this.channel.send(new Message(address, signal));
+			this.channel.send(new Message(address, obj));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
-
+	
 	@Override
 	public void viewAccepted(View view) {
+		System.out.println(view);
 		if (users.size() > view.getMembers().size()) {
 			searchFallenNode(view.getMembers());
 		} else {
@@ -95,7 +96,7 @@ public class Connection extends ReceiverAdapter {
 		return this.clusterName;
 	}
 
-	public Set<Address> getUsers() {
-		return this.users;
+	public List<Address> getMembers() {
+		return channel.getView().getMembers();
 	}
 }

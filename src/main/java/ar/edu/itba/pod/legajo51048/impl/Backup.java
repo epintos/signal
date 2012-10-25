@@ -1,10 +1,12 @@
 package ar.edu.itba.pod.legajo51048.impl;
 
+import java.io.Serializable;
+
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
 
-public class Backup {
+public class Backup implements Serializable{
 
 	private Address address;
 	private Signal signal;

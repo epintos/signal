@@ -67,15 +67,25 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public void add(Signal signal) throws RemoteException {
-		Set<Address> users = connection.getUsers();
+		distributeSignalAndBackup(signal);
+	}
+
+	private void distributeSignalAndBackup(Signal signal) {
+		List<Address> users = connection.getMembers();
+		int limit = users.size();
+		int sigRandom = 0;
+		int backRandom = 0;
+		while (limit != 1
+				&& (sigRandom = random(limit)) == (backRandom = random(limit)))
+			;
+		connection.sendMessageTo(users.get(sigRandom), signal);
+		connection.sendMessageTo(users.get(backRandom),
+				new Backup(users.get(backRandom), signal));
+	}
+
+	private int random(int limit) {
 		Random random = new Random();
-		int r = random.nextInt(users.size());
-		int i = 0;
-		for (Address address : users) {
-			if (i++ == r) {
-				connection.sendMessageTo(address, signal);
-			}
-		}
+		return random.nextInt(limit);
 	}
 
 	protected void addSignal(Signal signal) {
