@@ -2,10 +2,7 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -14,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,6 +32,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	private final BlockingQueue<Signal> signals;
 	private final Multimap<Address, Signal> backups;
+	private final Multimap<Integer, Address> requests;
 	private final ExecutorService executor;
 	private final int threadsQty;
 	public static final String EXIT_MESSAGE = "EXIT_MESSAGE";
@@ -46,6 +45,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	public MultithreadedSignalProcessor(int threadsQty) {
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
 		this.backups = Multimaps.synchronizedListMultimap(list);
+		ArrayListMultimap<Integer, Address> list2 = ArrayListMultimap.create();
+		this.requests = Multimaps.synchronizedListMultimap(list2);
 		this.signals = new LinkedBlockingQueue<Signal>();
 		this.executor = Executors.newFixedThreadPool(threadsQty);
 		this.threadsQty = threadsQty;
@@ -152,27 +153,30 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			return;
 		}
 		degraded.set(true);
-		int membersQty = connection.getUsers().size();
+		int membersQty = connection.getMembersQty();
 		synchronized (signals) {
 			int sizeToDistribute = signals.size() / membersQty;
 			List<Signal> distSignals = new ArrayList<Signal>();
 			signals.drainTo(distSignals, sizeToDistribute);
 			boolean me = true;
 			Address addr = null;
+			Address myAddress = connection.getMyAddress();
 			while (me) {
 				int to = random(membersQty);
 				addr = connection.getMembers().get(to);
-				if (!addr.equals(connection.getMyAddress())) {
+				if (!addr.equals(myAddress)) {
 					me = false;
 				}
 			}
 			System.out.println(addr);
-			System.out.println("tamaño: " + signals.size());
-			distribute(addr, new SignalMessage(distSignals,
+			System.out.println("tamaño distSignals: " + distSignals.size());
+			// distribute(addr, new SignalMessage(distSignals,
+			// SignalMessageType.YOUR_SIGNALS));
+			connection.sendMessageTo(addr, new SignalMessage(distSignals,
 					SignalMessageType.YOUR_SIGNALS));
-
-			connection.broadcastMessage(new SignalMessage(addr, distSignals,
-					SignalMessageType.CHANGE_BACK_UP_OWNER));
+			//
+			// connection.broadcastMessage(new SignalMessage(addr, distSignals,
+			// SignalMessageType.CHANGE_BACK_UP_OWNER));
 		}
 		degraded.set(false);
 	}
@@ -209,10 +213,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		this.signals.add(signal);
 	}
 
-	protected void addSignals(List<Signal> signals) {
+	protected void addSignals(List<Signal> newSignals) {
 		System.out.println("agrega signals");
-		this.signals.addAll(signals);
-		System.out.println("tamaño size 2: " + signals.size());
+		this.signals.addAll(newSignals);
 	}
 
 	protected void addBackup(Address address, Signal signal) {
@@ -226,7 +229,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 						SignalMessageType.ASKED_RESULT));
 	}
 
-	protected void addResult(Result result) {
+	protected void addResult(Address address, int requestId, Result result) {
+		// Bajar en 1 el semaforo
+		// Agregar resultado a cola
 	}
 
 	@Override
@@ -237,6 +242,18 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 		// connection.broadcastMessage(new SignalMessage(signal,
 		// SignalMessageType.FIND_SIMILAR));
+		Semaphore sem = new Semaphore(connection.getMembersQty());
+		for (Address address : connection.getMembers()) {
+			requests.put(receivedSignals.get(), address);
+			connection.sendMessageTo(address, new SignalMessage(signal,
+					receivedSignals.get(), SignalMessageType.FIND_SIMILAR));
+		}
+		try {
+			sem.acquire(connection.getMembersQty());
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		return findSimilarToAux(signal);
 	}

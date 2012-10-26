@@ -8,15 +8,16 @@ import org.jgroups.Address;
 import ar.edu.itba.pod.api.Result;
 import ar.edu.itba.pod.api.Signal;
 
-public class SignalMessage implements Serializable{
-	
+public class SignalMessage implements Serializable {
+
 	private static final long serialVersionUID = 1L;
-	
+
 	private Signal signal;
 	private List<Signal> signals;
 	private String type;
 	private Address address;
 	private Result result;
+	private int requestId;
 
 	public SignalMessage(Signal signal) {
 		this.signal = signal;
@@ -25,6 +26,13 @@ public class SignalMessage implements Serializable{
 	public SignalMessage(Signal signal, String type) {
 		this.signal = signal;
 		this.type = type;
+	}
+
+	public SignalMessage(Signal signal, int requestId, String type) {
+		this.signal = signal;
+		this.type = type;
+		this.requestId = requestId;
+
 	}
 
 	/**
@@ -38,7 +46,7 @@ public class SignalMessage implements Serializable{
 		this.address = address;
 		this.type = type;
 	}
-	
+
 	public SignalMessage(Address address, Result result, String type) {
 		this.result = result;
 		this.address = address;
@@ -46,11 +54,11 @@ public class SignalMessage implements Serializable{
 	}
 
 	public SignalMessage(List<Signal> signals, String type) {
-		this.type = type;
 		this.signals = signals;
+		this.type = type;
 	}
-	
-	public SignalMessage(Address address , List<Signal> signals, String type) {
+
+	public SignalMessage(Address address, List<Signal> signals, String type) {
 		this.type = type;
 		this.signals = signals;
 		this.address = address;
@@ -71,8 +79,12 @@ public class SignalMessage implements Serializable{
 	public String getType() {
 		return type;
 	}
-	
-	public Result getResult(){
+
+	public Result getResult() {
 		return result;
+	}
+	
+	public int getRequestId() {
+		return requestId;
 	}
 }

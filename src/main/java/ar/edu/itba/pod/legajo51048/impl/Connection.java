@@ -37,7 +37,6 @@ public class Connection extends ReceiverAdapter {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
 			users.add(channel.getAddress());
-			channel.setDiscardOwnMessages(true);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -81,7 +80,11 @@ public class Connection extends ReceiverAdapter {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
 		users.addAll(disjunction);
-		processor.distributeSignals();
+		new Thread(){
+			public void run() {
+				processor.distributeSignals();
+			};
+		}.start();
 	}
 
 	@Override
@@ -99,16 +102,19 @@ public class Connection extends ReceiverAdapter {
 			processor.addBackup(message.getAddress(), message.getSignal());
 			break;
 		case SignalMessageType.CHANGE_BACK_UP_OWNER:
-			processor.changeBackupOwner(message.getAddress(), message.getSignals());
+			processor.changeBackupOwner(message.getAddress(),
+					message.getSignals());
 			break;
 		case SignalMessageType.FIND_SIMILAR:
-			processor.findMySimilars(msg.getSrc(), message.getSignal());
+			if (!msg.getSrc().equals(this.getMyAddress())) {
+				processor.findMySimilars(msg.getSrc(), message.getSignal());
+			}
 			break;
 		case SignalMessageType.BYE_NODE:
 			processor.removeBackups(msg.getSrc());
 			break;
 		case SignalMessageType.ASKED_RESULT:
-			processor.addResult(message.getResult());
+			processor.addResult(msg.getSrc(),message.getRequestId(),message.getResult());
 			break;
 		default:
 			break;
@@ -126,16 +132,17 @@ public class Connection extends ReceiverAdapter {
 	public List<Address> getMembers() {
 		return channel.getView().getMembers();
 	}
-	
-	public int getMembersQty(){
+
+	public int getMembersQty() {
 		return getMembers().size();
 	}
-	
-	public Address getMyAddress(){
+
+	public Address getMyAddress() {
 		return channel.getAddress();
 	}
+
 	public Set<Address> getUsers() {
 		return users;
 	}
-	
+
 }
