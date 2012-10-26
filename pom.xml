@@ -51,7 +51,7 @@
 					<archive>
 						<manifest>
 							<addClasspath>true</addClasspath>
-							<mainClass>ar.edu.itba.pod.legajo51048.impl.Server</mainClass>
+							<mainClass>ar.edu.itba.pod.legajo51048.Server</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
@@ -61,7 +61,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>ar.edu.itba.pod.legajo51048.impl.Server</mainClass>
+							<mainClass>ar.edu.itba.pod.legajo51048.Server</mainClass>
 						</manifest>
 					</archive>
 					<descriptorRefs>

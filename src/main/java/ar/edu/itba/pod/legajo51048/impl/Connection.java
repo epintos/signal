@@ -37,6 +37,7 @@ public class Connection extends ReceiverAdapter {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
 			users.add(channel.getAddress());
+			channel.setDiscardOwnMessages(true);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -79,30 +80,38 @@ public class Connection extends ReceiverAdapter {
 	private void searchNewNode(List<Address> newMembers) {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
-		processor.distributeSignals();
 		users.addAll(disjunction);
+		processor.distributeSignals();
 	}
 
 	@Override
 	public void receive(Message msg) {
-		if (msg.getObject() instanceof SignalMessage) {
-			SignalMessage message = (SignalMessage) msg.getObject();
-			if (message.isBackup()) {
-				processor.addBackup(message.getAddress(), message.getSignal());
-			} else if (message.isBroadcastFind()) {
-				processor.findMySimilars(msg.getSrc(), message.getSignal());
-			} else {
-				processor.addSignal(message.getSignal());
-			}
-		} else if (msg.getObject() instanceof String) {
-			String str = (String) msg.getObject();
-			switch (str) {
-			case MultithreadedSignalProcessor.EXIT_MESSAGE:
-				processor.removeBackups(msg.getSrc());
-				break;
-			}
-		} else if (msg.getObject() instanceof Result) {
-			processor.addResult((Result)msg.getObject());
+		SignalMessage message = (SignalMessage) msg.getObject();
+		System.out.println(((SignalMessage) msg.getObject()).getType());
+		switch (((SignalMessage) msg.getObject()).getType()) {
+		case SignalMessageType.YOUR_SIGNAL:
+			processor.addSignal(message.getSignal());
+			break;
+		case SignalMessageType.YOUR_SIGNALS:
+			processor.addSignals(message.getSignals());
+			break;
+		case SignalMessageType.BACK_UP:
+			processor.addBackup(message.getAddress(), message.getSignal());
+			break;
+		case SignalMessageType.CHANGE_BACK_UP_OWNER:
+			processor.changeBackupOwner(message.getAddress(), message.getSignals());
+			break;
+		case SignalMessageType.FIND_SIMILAR:
+			processor.findMySimilars(msg.getSrc(), message.getSignal());
+			break;
+		case SignalMessageType.BYE_NODE:
+			processor.removeBackups(msg.getSrc());
+			break;
+		case SignalMessageType.ASKED_RESULT:
+			processor.addResult(message.getResult());
+			break;
+		default:
+			break;
 		}
 	}
 
@@ -117,4 +126,16 @@ public class Connection extends ReceiverAdapter {
 	public List<Address> getMembers() {
 		return channel.getView().getMembers();
 	}
+	
+	public int getMembersQty(){
+		return getMembers().size();
+	}
+	
+	public Address getMyAddress(){
+		return channel.getAddress();
+	}
+	public Set<Address> getUsers() {
+		return users;
+	}
+	
 }

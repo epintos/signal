@@ -2,7 +2,10 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -50,7 +53,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public void join(String clusterName) throws RemoteException {
-		if (connection.getClusterName() != null) {
+		if (connection != null && connection.getClusterName() != null) {
 			throw new IllegalStateException("Already in cluster "
 					+ connection.getClusterName());
 		}
@@ -86,16 +89,33 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	private void distributeNewSignal(Signal signal) {
 		List<Address> users = connection.getMembers();
-		int limit = users.size();
+		int membersQty = users.size();
+		System.out.println("usuarios: " + membersQty);
 		int sigRandom = 0;
 		int backRandom = 0;
-		while (limit != 1
-				&& (sigRandom = random(limit)) == (backRandom = random(limit)))
+		while ((sigRandom = random(membersQty)) == (backRandom = random(membersQty))
+				&& membersQty != 1)
 			;
-		connection.sendMessageTo(users.get(sigRandom),
-				new SignalMessage(signal));
-		connection.sendMessageTo(users.get(backRandom),
-				new SignalMessage(users.get(sigRandom), signal));
+		if (membersQty != 1) {
+			Address sigAddress = users.get(sigRandom);
+			Address backAddress = users.get(backRandom);
+			Address myAddress = connection.getMyAddress();
+			if (myAddress.equals(sigAddress)) {
+				signals.add(signal);
+			} else {
+				connection.sendMessageTo(sigAddress, new SignalMessage(signal,
+						SignalMessageType.YOUR_SIGNAL));
+			}
+			if (myAddress.equals(backAddress)) {
+				this.backups.put(sigAddress, signal);
+			}
+			connection.sendMessageTo(backAddress, new SignalMessage(sigAddress,
+					signal, SignalMessageType.BACK_UP));
+		} else {
+			this.signals.add(signal);
+			// For easier distribution later
+			this.backups.put(connection.getMyAddress(), signal);
+		}
 	}
 
 	protected void removeBackups(Address address) {
@@ -105,29 +125,79 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	protected void distributeBackups(Address address) {
 		degraded.set(true);
 		for (Signal signal : backups.get(address)) {
-			distribute(address, new SignalMessage(signal));
-			backups.remove(address, signal);
+			// Assign to me
+			signals.add(signal);
+			List<Address> users = connection.getMembers();
+			int limit = users.size();
+			boolean me = true;
+			Address addr = null;
+			while (limit != 1 && me) {
+				int to = random(limit);
+				addr = connection.getMembers().get(to);
+				if (!addr.equals(connection.getMyAddress())) {
+					me = false;
+				}
+			}
+			if (limit != 1) {
+				distribute(addr, new SignalMessage(connection.getMyAddress(),
+						signal, SignalMessageType.BACK_UP));
+			}
 		}
+		backups.removeAll(address);
 		degraded.set(false);
 	}
 
 	protected void distributeSignals() {
+		if (signals.isEmpty()) {
+			return;
+		}
 		degraded.set(true);
-		boolean finished = false;
+		int membersQty = connection.getUsers().size();
 		synchronized (signals) {
-			while (!finished) {
-				Signal signal = signals.poll();
-				if (signal == null) {
-					finished = true;
+			int sizeToDistribute = signals.size() / membersQty;
+			List<Signal> distSignals = new ArrayList<Signal>();
+			signals.drainTo(distSignals, sizeToDistribute);
+			boolean me = true;
+			Address addr = null;
+			while (me) {
+				int to = random(membersQty);
+				addr = connection.getMembers().get(to);
+				if (!addr.equals(connection.getMyAddress())) {
+					me = false;
 				}
-				distributeNewSignal(signal);
 			}
+			System.out.println(addr);
+			System.out.println("tamaño: " + signals.size());
+			distribute(addr, new SignalMessage(distSignals,
+					SignalMessageType.YOUR_SIGNALS));
+
+			connection.broadcastMessage(new SignalMessage(addr, distSignals,
+					SignalMessageType.CHANGE_BACK_UP_OWNER));
 		}
 		degraded.set(false);
 	}
 
 	private void distribute(Address address, Object obj) {
 		connection.sendMessageTo(address, obj);
+	}
+
+	protected void changeBackupOwner(Address address, List<Signal> signals) {
+		Multimap<Address, Signal> toRemove;
+		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
+		toRemove = Multimaps.synchronizedListMultimap(list);
+		for (Address addr : backups.keySet()) {
+			for (Signal signal : backups.get(addr)) {
+				if (signals.contains(signal)) {
+					toRemove.put(addr, signal);
+					backups.put(address, signal);
+				}
+			}
+		}
+		for (Address addr : toRemove.keySet()) {
+			for (Signal signal : toRemove.get(addr)) {
+				backups.remove(addr, signal);
+			}
+		}
 	}
 
 	private int random(int limit) {
@@ -139,16 +209,24 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		this.signals.add(signal);
 	}
 
+	protected void addSignals(List<Signal> signals) {
+		System.out.println("agrega signals");
+		this.signals.addAll(signals);
+		System.out.println("tamaño size 2: " + signals.size());
+	}
+
 	protected void addBackup(Address address, Signal signal) {
 		this.backups.put(address, signal);
 	}
 
 	protected void findMySimilars(Address address, Signal signal) {
 		Result result = findSimilarToAux(signal);
-		connection.sendMessageTo(address, result);
+		connection.sendMessageTo(address,
+				new SignalMessage(connection.getMyAddress(), result,
+						SignalMessageType.ASKED_RESULT));
 	}
 
-	protected void addResult(Result result){
+	protected void addResult(Result result) {
 	}
 
 	@Override
@@ -157,7 +235,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			throw new IllegalArgumentException("Signal cannot be null");
 		}
 
-		connection.broadcastMessage(new SignalMessage(signal, true));
+		// connection.broadcastMessage(new SignalMessage(signal,
+		// SignalMessageType.FIND_SIMILAR));
 
 		return findSimilarToAux(signal);
 	}
