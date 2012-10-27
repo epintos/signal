@@ -264,16 +264,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				}
 				address = addr;
 			}
-			System.out.println(address);
-			System.out.println("tamaño distSignals: " + distSignals.size());
-			System.out.println("mandando");
 			connection.sendMessageTo(address, new SignalMessage(distSignals,
 					SignalMessageType.YOUR_SIGNALS));
 			sendSignals.putAll(address, distSignals);
 
 			// It's the first time, so backup must be distributed
 			if (membersQty == 2) {
-				System.out.println("first time, distribuyendo...");
 				for (Signal signal : this.signals) {
 					distributeBackup(connection.getMyAddress(), signal);
 					this.backups.remove(connection.getMyAddress(), signal);
@@ -288,11 +284,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	}
 
 	protected void changeBackupOwner(Address newOwner, List<Signal> signals) {
-			Multimap<Address, Signal> toRemove;
-			ArrayListMultimap<Address, Signal> list = ArrayListMultimap
-					.create();
-			toRemove = Multimaps.synchronizedListMultimap(list);
-			for (Address oldOwner : backups.keySet()) {
+		Multimap<Address, Signal> toRemove;
+		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
+		toRemove = Multimaps.synchronizedListMultimap(list);
+		synchronized (backups) {
+		for (Address oldOwner : backups.keySet()) {
+
 				for (Signal signal : backups.get(oldOwner)) {
 					// TODO: Ver que pasa si hay dos señales iguales dando
 					// vuelta y
@@ -303,11 +300,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					}
 				}
 			}
-			for (Address addr : toRemove.keySet()) {
-				for (Signal signal : toRemove.get(addr)) {
-					backups.remove(addr, signal);
-				}
+		}
+		for (Address addr : toRemove.keySet()) {
+			for (Signal signal : toRemove.get(addr)) {
+				backups.remove(addr, signal);
 			}
+		}
 	}
 
 	private int random(int limit) {
@@ -478,14 +476,14 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 						distributeBackup(notification.getAddress(),
 								notification.getSignal());
 						break;
-					case SignalMessageType.ADD_SIGNAL_NACK:
-						sendSignals.remove(notification.getAddress(),
-								notification.getSignal());
-						// Try with someone else
-						distributeNewSignal(notification.getSignal());
-						sendSignals.put(notification.getAddress(),
-								notification.getSignal());
-						break;
+					// case SignalMessageType.ADD_SIGNAL_NACK:
+					// sendSignals.remove(notification.getAddress(),
+					// notification.getSignal());
+					// // Try with someone else
+					// distributeNewSignal(notification.getSignal());
+					// sendSignals.put(notification.getAddress(),
+					// notification.getSignal());
+					// break;
 					case SignalMessageType.ADD_SIGNALS_ACK:
 						sendSignals.remove(notification.getAddress(),
 								notification.getSignals());
@@ -501,26 +499,23 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 							distributeBackup(notification.getAddress(), signal);
 						}
 						break;
-					case SignalMessageType.ADD_SIGNALS_NACK:
-						sendSignals.remove(notification.getAddress(),
-								notification.getSignals());
-						// Try with someone else
-						distributeSignals(new LinkedBlockingQueue<Signal>(
-								notification.getSignals()), null);
-						sendSignals.putAll(notification.getAddress(),
-								notification.getSignals());
-						break;
+					// case SignalMessageType.ADD_SIGNALS_NACK:
+					// sendSignals.remove(notification.getAddress(),
+					// notification.getSignals());
+					// // Try with someone else
+					// distributeSignals(new LinkedBlockingQueue<Signal>(
+					// notification.getSignals()), null);
+					// sendSignals.putAll(notification.getAddress(),
+					// notification.getSignals());
+					// break;
 					case SignalMessageType.ADD_BACKUP_ACK:
 						sendBackups.remove(notification.getAddress(),
 								notification.getBackup());
-						System.out.println("backup ack llega");
 						if (signals.contains(notification.getBackup()
 								.getSignal())) {
 							mySignalsBackup.put(notification.getAddress(),
 									notification.getBackup().getSignal());
-							System.out.println("mi señal");
 						} else {
-							System.out.println("mandando owner");
 							connection.sendMessageTo(notification.getBackup()
 									.getAddress(), new SignalMessage(
 									notification.getAddress(), notification
@@ -528,23 +523,21 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 									SignalMessageType.ADD_BACKUP_OWNER));
 						}
 						break;
-					case SignalMessageType.ADD_BACKUP_NACK:
-						sendBackups.remove(notification.getAddress(),
-								notification.getBackup());
-						// Try with someone else
-						distributeBackup(notification.getAddress(),
-								notification.getSignal(),
-								notification.getBackup());
-						break;
+					// case SignalMessageType.ADD_BACKUP_NACK:
+					// sendBackups.remove(notification.getAddress(),
+					// notification.getBackup());
+					// // Try with someone else
+					// distributeBackup(notification.getAddress(),
+					// notification.getSignal(),
+					// notification.getBackup());
+					// break;
 					case SignalMessageType.ADD_BACKUPS_ACK:
 						for (Backup b : notification.getBackupList()) {
 							sendBackups.remove(notification.getAddress(), b);
 							if (signals.contains(b.getSignal())) {
 								mySignalsBackup.put(notification.getAddress(),
 										b.getSignal());
-								System.out.println("mi señal");
 							} else {
-								System.out.println("mandando owner");
 								connection
 										.sendMessageTo(
 												b.getAddress(),

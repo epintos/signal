@@ -56,7 +56,6 @@ public class Connection extends ReceiverAdapter {
 
 	@Override
 	public void viewAccepted(View view) {
-		System.out.println(view);
 		if (users.size() > view.getMembers().size()) {
 			searchFallenNode(view.getMembers());
 		} else {
@@ -85,7 +84,6 @@ public class Connection extends ReceiverAdapter {
 	@Override
 	public void receive(Message msg) {
 		SignalMessage message = (SignalMessage) msg.getObject();
-//		System.out.println(((SignalMessage) msg.getObject()).getType());
 		switch (((SignalMessage) msg.getObject()).getType()) {
 		case SignalMessageType.YOUR_SIGNAL:
 			processor.addSignal(msg.getSrc(), message.getSignal());
