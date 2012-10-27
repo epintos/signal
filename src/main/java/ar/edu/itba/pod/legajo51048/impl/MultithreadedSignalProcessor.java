@@ -2,6 +2,7 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -32,7 +33,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	private final BlockingQueue<Signal> signals;
 	private final Multimap<Address, Signal> backups;
-	private final Multimap<Integer, Address> requests;
+	// private final Multimap<Integer, Address> requests;
+	private final BlockingQueue<SignalMessage> notifications;
+	private final List<FindRequest> requests;
 	private final ExecutorService executor;
 	private final int threadsQty;
 	public static final String EXIT_MESSAGE = "EXIT_MESSAGE";
@@ -41,15 +44,21 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private AtomicBoolean degraded = new AtomicBoolean(false);
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
 	private Connection connection = null;
+	private NotificationsAnalyzer notificationsAnalyzer;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
 		this.backups = Multimaps.synchronizedListMultimap(list);
-		ArrayListMultimap<Integer, Address> list2 = ArrayListMultimap.create();
-		this.requests = Multimaps.synchronizedListMultimap(list2);
+		// ArrayListMultimap<Integer, Address> list2 =
+		// ArrayListMultimap.create();
+		// this.requests = Multimaps.synchronizedListMultimap(list2);
+		this.notifications = new LinkedBlockingQueue<SignalMessage>();
+		this.requests = new ArrayList<FindRequest>();
 		this.signals = new LinkedBlockingQueue<Signal>();
 		this.executor = Executors.newFixedThreadPool(threadsQty);
 		this.threadsQty = threadsQty;
+		this.notificationsAnalyzer = new NotificationsAnalyzer();
+		this.notificationsAnalyzer.start();
 	}
 
 	@Override
@@ -74,6 +83,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			connection.broadcastMessage(EXIT_MESSAGE);
 			connection.disconnect();
 		}
+		notificationsAnalyzer.finish();
 	}
 
 	@Override
@@ -89,9 +99,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	}
 
 	private void distributeNewSignal(Signal signal) {
-		List<Address> users = connection.getMembers();
-		int membersQty = users.size();
-		System.out.println("usuarios: " + membersQty);
+		int membersQty = 1;
+		List<Address> users = null;
+		if (connection != null) {
+			users = connection.getMembers();
+			membersQty = users.size();
+		}
 		int sigRandom = 0;
 		int backRandom = 0;
 		while ((sigRandom = random(membersQty)) == (backRandom = random(membersQty))
@@ -109,13 +122,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			}
 			if (myAddress.equals(backAddress)) {
 				this.backups.put(sigAddress, signal);
+			} else {
+				connection.sendMessageTo(backAddress, new SignalMessage(
+						sigAddress, signal, SignalMessageType.BACK_UP));
 			}
-			connection.sendMessageTo(backAddress, new SignalMessage(sigAddress,
-					signal, SignalMessageType.BACK_UP));
 		} else {
 			this.signals.add(signal);
 			// For easier distribution later
-			this.backups.put(connection.getMyAddress(), signal);
+			if (connection != null)
+				this.backups.put(connection.getMyAddress(), signal);
 		}
 	}
 
@@ -222,16 +237,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		this.backups.put(address, signal);
 	}
 
-	protected void findMySimilars(Address address, Signal signal) {
+	protected void findMySimilars(Address address, Signal signal, int id) {
 		Result result = findSimilarToAux(signal);
 		connection.sendMessageTo(address,
-				new SignalMessage(connection.getMyAddress(), result,
+				new SignalMessage(connection.getMyAddress(), result, id,
 						SignalMessageType.ASKED_RESULT));
 	}
 
-	protected void addResult(Address address, int requestId, Result result) {
-		// Bajar en 1 el semaforo
-		// Agregar resultado a cola
+	protected void addNotification(SignalMessage notification) {
+		notifications.add(notification);
 	}
 
 	@Override
@@ -239,23 +253,36 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (signal == null) {
 			throw new IllegalArgumentException("Signal cannot be null");
 		}
-
-		// connection.broadcastMessage(new SignalMessage(signal,
-		// SignalMessageType.FIND_SIMILAR));
-		Semaphore sem = new Semaphore(connection.getMembersQty());
-		for (Address address : connection.getMembers()) {
-			requests.put(receivedSignals.get(), address);
-			connection.sendMessageTo(address, new SignalMessage(signal,
-					receivedSignals.get(), SignalMessageType.FIND_SIMILAR));
+		int requestId = receivedSignals.incrementAndGet();
+		if (connection != null) {
+			List<Address> addresses = new ArrayList<Address>(
+					connection.getMembers());
+			addresses.remove(connection.getMyAddress());
+			Semaphore semaphore = new Semaphore(addresses.size());
+			requests.add(new FindRequest(requestId, addresses,
+					addresses.size(), semaphore));
+			for (Address address : addresses) {
+				connection.sendMessageTo(address, new SignalMessage(signal,
+						receivedSignals.get(), SignalMessageType.FIND_SIMILAR));
+			}
+			semaphore.tryAcquire(addresses.size());
 		}
-		try {
-			sem.acquire(connection.getMembersQty());
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		Result result = findSimilarToAux(signal);
+		Iterator<FindRequest> it = requests.iterator();
+		while (it.hasNext()) {
+			FindRequest request = it.next();
+			if (request.getId() == requestId) {
+				List<Result> results = request.getResults();
+				for (Result otherResult : results) {
+					for (Item item : otherResult.items()) {
+						result = result.include(item);
+					}
+				}
+				it.remove();
+				break;
+			}
 		}
-
-		return findSimilarToAux(signal);
+		return result;
 	}
 
 	private Result findSimilarToAux(Signal signal) {
@@ -275,7 +302,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					result = result.include(item);
 				}
 			}
-			receivedSignals.incrementAndGet();
 			return result;
 		} catch (InterruptedException e) {
 			e.printStackTrace();
@@ -311,6 +337,39 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				result = result.include(item);
 			}
 		}
+	}
+
+	private class NotificationsAnalyzer extends Thread {
+
+		private AtomicBoolean finishedAnalyzer = new AtomicBoolean(false);
+
+		@Override
+		public void run() {
+			while (!finishedAnalyzer.get()) {
+				try {
+					SignalMessage notification;
+					notification = notifications.take();
+					switch (notification.getType()) {
+					case SignalMessageType.REQUEST_NOTIFICATION:
+						for (FindRequest request : requests) {
+							if (request.getId() == notification.getRequestId()) {
+								request.removeAddress(notification.getAddress());
+								request.addResult(notification.getResult());
+								request.getSemaphore().release();
+								break;
+							}
+						}
+						break;
+					}
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+
+		public void finish() {
+			finishedAnalyzer.set(true);
+		}
+
 	}
 
 }

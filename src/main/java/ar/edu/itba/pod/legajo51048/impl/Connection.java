@@ -12,8 +12,6 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
-import ar.edu.itba.pod.api.Result;
-
 public class Connection extends ReceiverAdapter {
 	private JChannel channel;
 	private String clusterName = null;
@@ -36,7 +34,7 @@ public class Connection extends ReceiverAdapter {
 		try {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
-			users.add(channel.getAddress());
+			users.addAll(getMembers());
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -80,7 +78,7 @@ public class Connection extends ReceiverAdapter {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
 		users.addAll(disjunction);
-		new Thread(){
+		new Thread() {
 			public void run() {
 				processor.distributeSignals();
 			};
@@ -90,7 +88,7 @@ public class Connection extends ReceiverAdapter {
 	@Override
 	public void receive(Message msg) {
 		SignalMessage message = (SignalMessage) msg.getObject();
-		System.out.println(((SignalMessage) msg.getObject()).getType());
+//		System.out.println(((SignalMessage) msg.getObject()).getType());
 		switch (((SignalMessage) msg.getObject()).getType()) {
 		case SignalMessageType.YOUR_SIGNAL:
 			processor.addSignal(message.getSignal());
@@ -107,14 +105,17 @@ public class Connection extends ReceiverAdapter {
 			break;
 		case SignalMessageType.FIND_SIMILAR:
 			if (!msg.getSrc().equals(this.getMyAddress())) {
-				processor.findMySimilars(msg.getSrc(), message.getSignal());
+				processor.findMySimilars(msg.getSrc(), message.getSignal(),
+						message.getRequestId());
 			}
 			break;
 		case SignalMessageType.BYE_NODE:
 			processor.removeBackups(msg.getSrc());
 			break;
 		case SignalMessageType.ASKED_RESULT:
-			processor.addResult(msg.getSrc(),message.getRequestId(),message.getResult());
+			processor.addNotification(new SignalMessage(getMyAddress(), message
+					.getResult(), message.getRequestId(),
+					SignalMessageType.REQUEST_NOTIFICATION));
 			break;
 		default:
 			break;

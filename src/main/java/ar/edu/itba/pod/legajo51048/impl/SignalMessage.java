@@ -47,10 +47,11 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
-	public SignalMessage(Address address, Result result, String type) {
+	public SignalMessage(Address address, Result result, int id, String type) {
 		this.result = result;
 		this.address = address;
 		this.type = type;
+		this.requestId = id;
 	}
 
 	public SignalMessage(List<Signal> signals, String type) {
