@@ -10,7 +10,7 @@ import ar.edu.itba.pod.api.Signal;
 
 public class SignalMessage implements Serializable {
 
-	private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 123423423424L;
 
 	private Signal signal;
 	private List<Signal> signals;
@@ -18,6 +18,7 @@ public class SignalMessage implements Serializable {
 	private Address address;
 	private Result result;
 	private int requestId;
+	private Backup backup;
 
 	public SignalMessage(Signal signal) {
 		this.signal = signal;
@@ -35,15 +36,25 @@ public class SignalMessage implements Serializable {
 
 	}
 
-	/**
-	 * 
-	 * @param address
-	 *            Address from the owner of the signal
-	 * @param signal
-	 */
 	public SignalMessage(Address address, Signal signal, String type) {
 		this.signal = signal;
 		this.address = address;
+		this.type = type;
+	}
+	
+	public SignalMessage(Address address, String type) {
+		this.address = address;
+		this.type = type;
+	}
+	
+	public SignalMessage( Address address, Backup backup, String type) {
+		this.address = address;
+		this.backup = backup;
+		this.type = type;
+	}
+	
+	public SignalMessage(Backup backup, String type) {
+		this.backup = backup;
 		this.type = type;
 	}
 
@@ -87,5 +98,9 @@ public class SignalMessage implements Serializable {
 	
 	public int getRequestId() {
 		return requestId;
+	}
+	
+	public Backup getBackup() {
+		return backup;
 	}
 }

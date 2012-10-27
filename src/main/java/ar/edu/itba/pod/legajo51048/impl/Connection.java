@@ -68,7 +68,8 @@ public class Connection extends ReceiverAdapter {
 		Collection<Address> disjunction = CollectionUtils.disjunction(users,
 				newMembers);
 		for (Address address : disjunction) {
-			processor.distributeBackups(address);
+			processor.addNotification(new SignalMessage(address,
+					SignalMessageType.BYE_NODE));
 		}
 		users.removeAll(disjunction);
 	}
@@ -78,11 +79,11 @@ public class Connection extends ReceiverAdapter {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
 		users.addAll(disjunction);
-		new Thread() {
-			public void run() {
-				processor.distributeSignals();
-			};
-		}.start();
+		for (Address address : disjunction) {
+			System.out.println("NUEVO: " + address);
+			processor.addNotification(new SignalMessage(address,
+					SignalMessageType.NEW_NODE));
+		}
 	}
 
 	@Override
@@ -91,33 +92,37 @@ public class Connection extends ReceiverAdapter {
 //		System.out.println(((SignalMessage) msg.getObject()).getType());
 		switch (((SignalMessage) msg.getObject()).getType()) {
 		case SignalMessageType.YOUR_SIGNAL:
-			processor.addSignal(message.getSignal());
+			processor.addSignal(msg.getSrc(), message.getSignal());
 			break;
 		case SignalMessageType.YOUR_SIGNALS:
-			processor.addSignals(message.getSignals());
+			processor.addSignals(msg.getSrc(), message.getSignals(),
+					SignalMessageType.YOUR_SIGNALS);
+			break;
+		case SignalMessageType.BACKUP_REDISTRIBUTION:
+			processor.addSignals(msg.getSrc(), message.getSignals(),
+					SignalMessageType.BACKUP_REDISTRIBUTION);
 			break;
 		case SignalMessageType.BACK_UP:
-			processor.addBackup(message.getAddress(), message.getSignal());
+			processor.addBackup(msg.getSrc(), message.getBackup());
 			break;
 		case SignalMessageType.CHANGE_BACK_UP_OWNER:
 			processor.changeBackupOwner(message.getAddress(),
 					message.getSignals());
 			break;
 		case SignalMessageType.FIND_SIMILAR:
-			if (!msg.getSrc().equals(this.getMyAddress())) {
-				processor.findMySimilars(msg.getSrc(), message.getSignal(),
-						message.getRequestId());
-			}
+			processor.findMySimilars(msg.getSrc(), message.getSignal(),
+					message.getRequestId());
 			break;
 		case SignalMessageType.BYE_NODE:
 			processor.removeBackups(msg.getSrc());
 			break;
-		case SignalMessageType.ASKED_RESULT:
-			processor.addNotification(new SignalMessage(getMyAddress(), message
-					.getResult(), message.getRequestId(),
-					SignalMessageType.REQUEST_NOTIFICATION));
+		case SignalMessageType.ADD_BACKUP_OWNER:
+			processor.changeWhoBackupMySignal(message.getAddress(),message.getSignal());
 			break;
+
+		/** For notifications **/
 		default:
+			processor.addNotification(message);
 			break;
 		}
 	}
