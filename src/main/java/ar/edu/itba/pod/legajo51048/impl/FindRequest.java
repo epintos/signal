@@ -1,7 +1,6 @@
 package ar.edu.itba.pod.legajo51048.impl;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 
@@ -9,15 +8,30 @@ import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Result;
 
+/**
+ * Class containing a request for finding similar signals.
+ * 
+ * @author egpintos17
+ * 
+ */
 public class FindRequest {
 
+	// Request id.
 	private int id;
+
+	// Nodes that are included in the request
 	private List<Address> addresses;
+
+	// Quantity of nodes in the request
 	private int qty;
+
 	private Semaphore semaphore;
+
+	// Results of the request
 	private List<Result> results;
 
-	public FindRequest(int id, List<Address> addresses, int qty,Semaphore semaphore) {
+	public FindRequest(int id, List<Address> addresses, int qty,
+			Semaphore semaphore) {
 		this.id = id;
 		this.addresses = addresses;
 		this.qty = qty;
@@ -45,11 +59,12 @@ public class FindRequest {
 		return results;
 	}
 
-	public void removeAddress(Address address){
+	public void removeAddress(Address address) {
 		this.results.remove(address);
 	}
-	public void addResult(Result result){
+
+	public void addResult(Result result) {
 		this.results.add(result);
 	}
-	
+
 }

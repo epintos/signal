@@ -13,7 +13,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jgroups.Address;
@@ -29,38 +28,64 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
+/**
+ * Implementation of a node that finds similar signals using multiple threads
+ * and distributing the request.
+ * 
+ * @author Esteban G. Pintos
+ * 
+ */
 public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
+	// It's signals
 	private final BlockingQueue<Signal> signals;
+
+	// Signals that have benn distributed and it's waiting for ACK
 	private final Multimap<Address, Signal> sendSignals;
+
+	// Back up of ther nodes signals
 	private final Multimap<Address, Signal> backups;
+
+	// Map containing who is the owner of the backup of "signals"
 	private final Multimap<Address, Signal> mySignalsBackup;
+
+	// Backups that have been distributed and it's waiting for ACK
 	private final Multimap<Address, Backup> sendBackups;
+
+	// Queue of notifications to analyze
 	private final BlockingQueue<SignalMessage> notifications;
+
+	// List containing the find similar request send to other nodes
 	private final List<FindRequest> requests;
+
+	// Processing threads
 	private final ExecutorService executor;
+	private NotificationsAnalyzer notificationsAnalyzer;
 	private final int threadsQty;
 
-	private AtomicBoolean degraded = new AtomicBoolean(false);
+	// Quantity of received find similar requests.
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
+
+	// Connection implementation to a cluster
 	private Connection connection = null;
-	private NotificationsAnalyzer notificationsAnalyzer;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
-		this.backups = Multimaps.synchronizedListMultimap(list);
 		ArrayListMultimap<Address, Backup> list2 = ArrayListMultimap.create();
-		this.sendBackups = Multimaps.synchronizedListMultimap(list2);
 		ArrayListMultimap<Address, Signal> list4 = ArrayListMultimap.create();
+		ArrayListMultimap<Address, Signal> list3 = ArrayListMultimap.create();
+		this.backups = Multimaps.synchronizedListMultimap(list);
+		this.sendBackups = Multimaps.synchronizedListMultimap(list2);
 		this.mySignalsBackup = Multimaps.synchronizedListMultimap(list4);
 		this.notifications = new LinkedBlockingQueue<SignalMessage>();
 		this.requests = new ArrayList<FindRequest>();
 		this.signals = new LinkedBlockingQueue<Signal>();
-		ArrayListMultimap<Address, Signal> list3 = ArrayListMultimap.create();
 		this.sendSignals = Multimaps.synchronizedListMultimap(list3);
 		this.executor = Executors.newFixedThreadPool(threadsQty);
 		this.threadsQty = threadsQty;
-		this.notificationsAnalyzer = new NotificationsAnalyzer();
+		this.notificationsAnalyzer = new NotificationsAnalyzer(signals,
+				notifications, sendSignals, this, mySignalsBackup,
+				sendBackups, requests);
 		this.notificationsAnalyzer.start();
 	}
 
@@ -75,18 +100,27 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					"Can't join a cluster because there are signals already stored");
 		}
 		this.connection = new Connection(clusterName, this);
+		notificationsAnalyzer.setConnection(connection);
 
 	}
 
 	@Override
 	public void exit() throws RemoteException {
 		signals.clear();
+		backups.clear();
+		notifications.clear();
 		receivedSignals = new AtomicInteger(0);
 		if (connection != null) {
 			connection.broadcastMessage(SignalMessageType.BYE_NODE);
 			connection.disconnect();
 		}
 		notificationsAnalyzer.finish();
+		notificationsAnalyzer.interrupt();
+		try {
+			notificationsAnalyzer.join(1000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
@@ -101,6 +135,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		distributeNewSignal(signal);
 	}
 
+	/*
+	 * Distributes a signal to a random node. If it's assigned to this node,
+	 * then the backup it's distributed. If there is only 1 node (this one), the
+	 * signal is added to this node and the backup also.
+	 */
 	private void distributeNewSignal(Signal signal) {
 		int membersQty = 1;
 		List<Address> users = null;
@@ -122,7 +161,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			}
 		} else {
 			this.signals.add(signal);
-			// TODO: Ver que hacer con los backups si no hay conexión
+			// TODO: Ver que hacer con los backups si no hay conexi??n
 			if (connection != null) {
 				this.backups.put(connection.getMyAddress(), signal);
 				this.mySignalsBackup.put(connection.getMyAddress(), signal);
@@ -130,21 +169,46 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 	}
 
+	/**
+	 * Removes all the backups that this node has of the node with "address"
+	 * 
+	 * @param address
+	 */
 	protected void removeBackups(Address address) {
 		backups.removeAll(address);
 	}
 
-	private void distributeLostBackups(Address fallenNodeAddress) {
+	/**
+	 * When a node falls, the backups that it had are redistributed to the other
+	 * nodes.
+	 * 
+	 * @param fallenNodeAddress
+	 */
+	protected void distributeLostBackups(Address fallenNodeAddress) {
 		distributeBackups(fallenNodeAddress, mySignalsBackup, true);
 	}
 
-	private void distributeNewSignalsFromBackups(Address fallenNodeAddress) {
+	/**
+	 * When a node falls, the signals that it had are redistributed to the other
+	 * nodes as new signals.
+	 * 
+	 * @param fallenNodeAddress
+	 */
+	protected void distributeNewSignalsFromBackups(Address fallenNodeAddress) {
 		distributeBackups(fallenNodeAddress, this.backups, false);
 	}
 
-	protected void distributeBackups(Address address,
+	/**
+	 * Distributes signals/backups according to the quantity of nodes
+	 * (randomly).
+	 * 
+	 * @param address
+	 * @param backups
+	 * @param isBackup
+	 *            Is backup or signal
+	 */
+	private void distributeBackups(Address address,
 			Multimap<Address, Signal> backups, boolean isBackup) {
-		degraded.set(true);
 		int membersQty = 1;
 		List<Address> members = null;
 		if (connection != null) {
@@ -158,6 +222,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			Address myAddress = connection.getMyAddress();
 			for (int i = 0; i < membersQty; i++) {
 				Address futureOwner = members.get(i);
+				// TODO: Y si soy yo?
 				if (!futureOwner.equals(myAddress)) {
 					List<Signal> auxList = new ArrayList<Signal>();
 					newSignals.drainTo(auxList, sizeToDistribute);
@@ -176,7 +241,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 										futureOwner,
 										new SignalMessage(
 												auxList,
-												SignalMessageType.BACKUP_REDISTRIBUTION));
+												SignalMessageType.SIGNAL_REDISTRIBUTION));
 						this.sendSignals.putAll(futureOwner, auxList);
 					}
 				}
@@ -193,10 +258,17 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			}
 			backups.removeAll(address);
 		}
-		degraded.set(false);
 	}
 
-	private void distributeBackup(Address owner, Signal signal) {
+	/**
+	 * Distributes randomly a backup from owner.
+	 * 
+	 * @param owner
+	 *            Owner of the signal
+	 * @param signal
+	 *            Signal
+	 */
+	protected void distributeBackup(Address owner, Signal signal) {
 		this.distributeBackup(owner, signal, null);
 	}
 
@@ -216,25 +288,33 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			if (connection.getMyAddress().equals(futureBackupOwner)) {
 				this.backups.put(signalOwner, signal);
 				connection.sendMessageTo(signalOwner, new SignalMessage(
-						futureBackupOwner, signal,
+						connection.getMyAddress(), signal,
 						SignalMessageType.ADD_BACKUP_OWNER));
 			} else {
 				if (backup == null) {
 					backup = new Backup(signalOwner, signal);
 				}
 				connection.sendMessageTo(futureBackupOwner, new SignalMessage(
-						// Address not used
-						connection.getMyAddress(), backup,
-						SignalMessageType.BACK_UP));
+						null, backup, SignalMessageType.BACK_UP));
 				sendBackups.put(futureBackupOwner, backup);
 			}
 		} else {
 			if (connection != null) {
 				this.backups.put(connection.getMyAddress(), signal);
+				// TODO: is this neccesary?
+				if (this.signals.contains(signal)) {
+					this.mySignalsBackup.put(connection.getMyAddress(), signal);
+				}
 			}
 		}
 	}
 
+	/**
+	 * Distribute signals to node with address
+	 * 
+	 * @param address
+	 *            Node address
+	 */
 	protected void distributeSignals(Address address) {
 		distributeSignals(this.signals, address);
 	}
@@ -244,31 +324,33 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (signals.isEmpty()) {
 			return;
 		}
-		degraded.set(true);
-		int membersQty = connection.getMembersQty();
+		int membersQty = 0;
+		if (connection != null) {
+			membersQty = connection.getMembersQty();
+		}
 		synchronized (signals) {
 			int sizeToDistribute = signals.size() / membersQty;
 			List<Signal> distSignals = new ArrayList<Signal>();
 			// Sublist of first sizeToDistribute (if available) signals
 			signals.drainTo(distSignals, sizeToDistribute);
-			if (address == null) {
-				boolean me = true;
-				Address addr = null;
-				Address myAddress = connection.getMyAddress();
-				while (me) {
-					int to = random(membersQty);
-					addr = connection.getMembers().get(to);
-					if (!addr.equals(myAddress)) {
-						me = false;
-					}
-				}
-				address = addr;
-			}
+			// if (address == null) {
+			// boolean me = true;
+			// Address addr = null;
+			// Address myAddress = connection.getMyAddress();
+			// while (me) {
+			// int to = random(membersQty);
+			// addr = connection.getMembers().get(to);
+			// if (!addr.equals(myAddress)) {
+			// me = false;
+			// }
+			// }
+			// address = addr;
+			// }
 			connection.sendMessageTo(address, new SignalMessage(distSignals,
 					SignalMessageType.YOUR_SIGNALS));
 			sendSignals.putAll(address, distSignals);
 
-			// It's the first time, so backup must be distributed
+			// There was only 1 node, so backup must be distributed
 			if (membersQty == 2) {
 				for (Signal signal : this.signals) {
 					distributeBackup(connection.getMyAddress(), signal);
@@ -276,22 +358,54 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				}
 			}
 		}
-		degraded.set(false);
 	}
 
-	private void distribute(Address address, Object obj) {
-		connection.sendMessageTo(address, obj);
-	}
-
+	/**
+	 * * Goes throw this.backups changing the owner of the backup containing
+	 * signals to newOwner
+	 * 
+	 * @param newOwner
+	 *            New owner of the backup
+	 * @param signals
+	 * @param backupMap
+	 */
 	protected void changeBackupOwner(Address newOwner, List<Signal> signals) {
+		changeBackupOwner(newOwner, signals, this.backups);
+	}
+
+	/**
+	 * * Goes throw this.mySignalsBackup changing the owner of the backup
+	 * containing signals to newOwner
+	 * 
+	 * @param address
+	 *            New owner of the backup
+	 * @param signal
+	 */
+	protected void changeWhoBackupMySignal(Address address, Signal signal) {
+		List<Signal> list = new ArrayList<Signal>();
+		list.add(signal);
+		changeBackupOwner(address, list, this.mySignalsBackup);
+	}
+
+	/**
+	 * * Goes throw backupMap changing the owner of the backup containing
+	 * signals to newOwner
+	 * 
+	 * @param newOwner
+	 *            New owner of the backup
+	 * @param signals
+	 * @param backupMap
+	 */
+	protected void changeBackupOwner(Address newOwner, List<Signal> signals,
+			Multimap<Address, Signal> backupMap) {
 		Multimap<Address, Signal> toRemove;
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
 		toRemove = Multimaps.synchronizedListMultimap(list);
 		synchronized (backups) {
-		for (Address oldOwner : backups.keySet()) {
+			for (Address oldOwner : backups.keySet()) {
 
 				for (Signal signal : backups.get(oldOwner)) {
-					// TODO: Ver que pasa si hay dos señales iguales dando
+					// TODO: Ver que pasa si hay dos se??ales iguales dando
 					// vuelta y
 					// hay dos backups tambien
 					if (signals.contains(signal)) {
@@ -308,11 +422,26 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 	}
 
+	/**
+	 * Calculates random value between 0 and limit.
+	 * 
+	 * @param limit
+	 * @return Random number
+	 */
 	private int random(int limit) {
 		Random random = new Random();
 		return random.nextInt(limit);
 	}
 
+	/**
+	 * 
+	 * Adds a signal to this node and returns ADD_SIGNAL_ACK to "from"
+	 * 
+	 * @param from
+	 *            Node that send me the order to add the signal
+	 * @param signal
+	 *            Signal to add
+	 */
 	protected void addSignal(Address from, Signal signal) {
 		this.signals.add(signal);
 		connection.sendMessageTo(from,
@@ -320,6 +449,16 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 						SignalMessageType.ADD_SIGNAL_ACK));
 	}
 
+	/**
+	 * Adds a list of signals to this node and returns ADD_SIGNALS_ACK if the
+	 * order whas to add brand new signals, and BACKUP_REDISTRIBUTION_ACK if the
+	 * order whas to add the signals of a fallen node
+	 * 
+	 * @param from
+	 * @param newSignals
+	 * @param type
+	 *            YOUR_SIGNALS or BACKUP_REDISTRIBUTION_ACK
+	 */
 	protected void addSignals(Address from, List<Signal> newSignals, String type) {
 		this.signals.addAll(newSignals);
 		connection
@@ -332,6 +471,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 										: SignalMessageType.BACKUP_REDISTRIBUTION_ACK));
 	}
 
+	/**
+	 * Adds a backup to this node and returns ADD_BACKUP_ACK
+	 * 
+	 * @param from
+	 *            Node that send me the order to add the backup
+	 * @param backup
+	 */
 	protected void addBackup(Address from, Backup backup) {
 		this.backups.put(backup.getAddress(), backup.getSignal());
 		connection.sendMessageTo(from,
@@ -339,6 +485,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 						SignalMessageType.ADD_BACKUP_ACK));
 	}
 
+	/**
+	 * Adds a list of backups to this node and returns ADD_BACKUPS_ACK
+	 * 
+	 * @param from
+	 *            Node that send me the order to add the backups
+	 * @param backupList
+	 */
 	protected void addBackups(Address from, List<Backup> backupList) {
 		for (Backup backup : backupList) {
 			this.backups.put(backup.getAddress(), backup.getSignal());
@@ -348,13 +501,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 						SignalMessageType.ADD_BACKUPS_ACK, backupList));
 	}
 
-	protected void findMySimilars(Address from, Signal signal, int id) {
-		Result result = findSimilarToAux(signal);
-		connection.sendMessageTo(from,
-				new SignalMessage(connection.getMyAddress(), result, id,
-						SignalMessageType.REQUEST_NOTIFICATION));
-	}
-
+	/**
+	 * Adds a notification to the queue.
+	 * 
+	 * @param notification
+	 *            New notification
+	 */
 	protected void addNotification(SignalMessage notification) {
 		notifications.add(notification);
 	}
@@ -396,6 +548,29 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		return result;
 	}
 
+	/**
+	 * Find similars to signal and returns the Result to from.
+	 * 
+	 * @param from
+	 *            Node that send the find similar request
+	 * @param signal
+	 *            Signal to analyze
+	 * @param id
+	 *            Id of the request
+	 */
+	protected void findMySimilars(Address from, Signal signal, int id) {
+		Result result = findSimilarToAux(signal);
+		connection.sendMessageTo(from,
+				new SignalMessage(connection.getMyAddress(), result, id,
+						SignalMessageType.REQUEST_NOTIFICATION));
+	}
+
+	/**
+	 * Finds similar signals of signal
+	 * 
+	 * @param signal
+	 * @return Result of similar signals
+	 */
 	private Result findSimilarToAux(Signal signal) {
 		List<Callable<Result>> tasks = new ArrayList<Callable<Result>>();
 		try {
@@ -403,7 +578,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					signals);
 			for (int i = 0; i < threadsQty; i++) {
 				// Generate a copy of the signals so they are not lost
-				tasks.add(new Worker(signal, copy));
+				tasks.add(new FindSimilarWorker(signal, copy));
 			}
 			List<Future<Result>> futures = executor.invokeAll(tasks);
 			Result result = new Result(signal);
@@ -415,6 +590,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			}
 			return result;
 		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 
 		} catch (ExecutionException e) {
@@ -423,155 +599,4 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 		return null;
 	}
-
-	private class Worker implements Callable<Result> {
-
-		private BlockingQueue<Signal> workerSignals;
-		private Signal workerSignal;
-
-		public Worker(Signal signal, BlockingQueue<Signal> signals) {
-			this.workerSignals = signals;
-			this.workerSignal = signal;
-		}
-
-		@Override
-		public Result call() throws Exception {
-			Result result = new Result(workerSignal);
-			while (true) {
-				Signal s = workerSignals.poll();
-				if (s == null) {
-					return result;
-				}
-				Result.Item item = new Result.Item(s,
-						workerSignal.findDeviation(s));
-				result = result.include(item);
-			}
-		}
-	}
-
-	private class NotificationsAnalyzer extends Thread {
-
-		private AtomicBoolean finishedAnalyzer = new AtomicBoolean(false);
-
-		@Override
-		public void run() {
-			while (!finishedAnalyzer.get()) {
-				try {
-					SignalMessage notification;
-					notification = notifications.take();
-					switch (notification.getType()) {
-					case SignalMessageType.REQUEST_NOTIFICATION:
-						for (FindRequest request : requests) {
-							if (request.getId() == notification.getRequestId()) {
-								request.removeAddress(notification.getAddress());
-								request.addResult(notification.getResult());
-								request.getSemaphore().release();
-								break;
-							}
-						}
-						break;
-					case SignalMessageType.ADD_SIGNAL_ACK:
-						sendSignals.remove(notification.getAddress(),
-								notification.getSignal());
-						distributeBackup(notification.getAddress(),
-								notification.getSignal());
-						break;
-					// case SignalMessageType.ADD_SIGNAL_NACK:
-					// sendSignals.remove(notification.getAddress(),
-					// notification.getSignal());
-					// // Try with someone else
-					// distributeNewSignal(notification.getSignal());
-					// sendSignals.put(notification.getAddress(),
-					// notification.getSignal());
-					// break;
-					case SignalMessageType.ADD_SIGNALS_ACK:
-						sendSignals.remove(notification.getAddress(),
-								notification.getSignals());
-						connection.broadcastMessage(new SignalMessage(
-								notification.getAddress(), notification
-										.getSignals(),
-								SignalMessageType.CHANGE_BACK_UP_OWNER));
-						break;
-					case SignalMessageType.BACKUP_REDISTRIBUTION_ACK:
-						sendSignals.remove(notification.getAddress(),
-								notification.getSignals());
-						for (Signal signal : notification.getSignals()) {
-							distributeBackup(notification.getAddress(), signal);
-						}
-						break;
-					// case SignalMessageType.ADD_SIGNALS_NACK:
-					// sendSignals.remove(notification.getAddress(),
-					// notification.getSignals());
-					// // Try with someone else
-					// distributeSignals(new LinkedBlockingQueue<Signal>(
-					// notification.getSignals()), null);
-					// sendSignals.putAll(notification.getAddress(),
-					// notification.getSignals());
-					// break;
-					case SignalMessageType.ADD_BACKUP_ACK:
-						sendBackups.remove(notification.getAddress(),
-								notification.getBackup());
-						if (signals.contains(notification.getBackup()
-								.getSignal())) {
-							mySignalsBackup.put(notification.getAddress(),
-									notification.getBackup().getSignal());
-						} else {
-							connection.sendMessageTo(notification.getBackup()
-									.getAddress(), new SignalMessage(
-									notification.getAddress(), notification
-											.getBackup().getSignal(),
-									SignalMessageType.ADD_BACKUP_OWNER));
-						}
-						break;
-					// case SignalMessageType.ADD_BACKUP_NACK:
-					// sendBackups.remove(notification.getAddress(),
-					// notification.getBackup());
-					// // Try with someone else
-					// distributeBackup(notification.getAddress(),
-					// notification.getSignal(),
-					// notification.getBackup());
-					// break;
-					case SignalMessageType.ADD_BACKUPS_ACK:
-						for (Backup b : notification.getBackupList()) {
-							sendBackups.remove(notification.getAddress(), b);
-							if (signals.contains(b.getSignal())) {
-								mySignalsBackup.put(notification.getAddress(),
-										b.getSignal());
-							} else {
-								connection
-										.sendMessageTo(
-												b.getAddress(),
-												new SignalMessage(
-														notification
-																.getAddress(),
-														b.getSignal(),
-														SignalMessageType.ADD_BACKUP_OWNER));
-							}
-						}
-						break;
-
-					case SignalMessageType.NEW_NODE:
-						distributeSignals(notification.getAddress());
-						break;
-					case SignalMessageType.BYE_NODE:
-						distributeNewSignalsFromBackups(notification
-								.getAddress());
-						distributeLostBackups(notification.getAddress());
-						break;
-					}
-				} catch (InterruptedException e) {
-				}
-			}
-		}
-
-		public void finish() {
-			finishedAnalyzer.set(true);
-		}
-
-	}
-
-	public void changeWhoBackupMySignal(Address address, Signal signal) {
-		this.mySignalsBackup.put(address, signal);
-	}
-
 }

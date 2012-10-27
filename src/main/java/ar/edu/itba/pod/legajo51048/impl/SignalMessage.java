@@ -8,6 +8,11 @@ import org.jgroups.Address;
 import ar.edu.itba.pod.api.Result;
 import ar.edu.itba.pod.api.Signal;
 
+/**
+ * Class for sending either backups, signals, ids, etc. between nodes.
+ * @author Esteban G. Pintos
+ *
+ */
 public class SignalMessage implements Serializable {
 
 	private static final long serialVersionUID = 123423423424L;

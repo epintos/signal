@@ -7,10 +7,16 @@ import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
 
+/**
+ * Class that contains the address of the owner of a signal/signals and them.
+ * 
+ * @author Esteban G. Pintos
+ * 
+ */
 public class Backup implements Serializable {
 
-	private static final long serialVersionUID = 1L;
-	
+	private static final long serialVersionUID = 24524521L;
+
 	private Address address;
 	private Signal signal;
 	private List<Signal> signals;
@@ -19,7 +25,7 @@ public class Backup implements Serializable {
 		this.address = address;
 		this.signal = signal;
 	}
-	
+
 	public Backup(Address address, List<Signal> signals) {
 		this.address = address;
 		this.signals = signals;
@@ -73,8 +79,5 @@ public class Backup implements Serializable {
 			return false;
 		return true;
 	}
-	
-	
-	
-	
+
 }

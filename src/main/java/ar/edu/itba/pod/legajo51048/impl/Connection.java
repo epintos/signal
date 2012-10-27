@@ -92,9 +92,9 @@ public class Connection extends ReceiverAdapter {
 			processor.addSignals(msg.getSrc(), message.getSignals(),
 					SignalMessageType.YOUR_SIGNALS);
 			break;
-		case SignalMessageType.BACKUP_REDISTRIBUTION:
+		case SignalMessageType.SIGNAL_REDISTRIBUTION:
 			processor.addSignals(msg.getSrc(), message.getSignals(),
-					SignalMessageType.BACKUP_REDISTRIBUTION);
+					SignalMessageType.SIGNAL_REDISTRIBUTION);
 			break;
 		case SignalMessageType.BACK_UP:
 			processor.addBackup(msg.getSrc(), message.getBackup());
