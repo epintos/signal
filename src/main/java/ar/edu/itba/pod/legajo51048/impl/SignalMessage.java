@@ -19,6 +19,7 @@ public class SignalMessage implements Serializable {
 	private Result result;
 	private int requestId;
 	private Backup backup;
+	private List<Backup> backupList;
 
 	public SignalMessage(Signal signal) {
 		this.signal = signal;
@@ -41,20 +42,26 @@ public class SignalMessage implements Serializable {
 		this.address = address;
 		this.type = type;
 	}
-	
+
+	public SignalMessage(Address address, String type, List<Backup> backupList) {
+		this.backupList = backupList;
+		this.address = address;
+		this.type = type;
+	}
+
 	public SignalMessage(Address address, String type) {
 		this.address = address;
 		this.type = type;
 	}
-	
-	public SignalMessage( Address address, Backup backup, String type) {
+
+	public SignalMessage(Address address, Backup backup, String type) {
 		this.address = address;
 		this.backup = backup;
 		this.type = type;
 	}
-	
-	public SignalMessage(Backup backup, String type) {
-		this.backup = backup;
+
+	public SignalMessage(String type, List<Backup> backupList) {
+		this.backupList = backupList;
 		this.type = type;
 	}
 
@@ -95,12 +102,16 @@ public class SignalMessage implements Serializable {
 	public Result getResult() {
 		return result;
 	}
-	
+
 	public int getRequestId() {
 		return requestId;
 	}
-	
+
 	public Backup getBackup() {
 		return backup;
+	}
+
+	public List<Backup> getBackupList() {
+		return backupList;
 	}
 }

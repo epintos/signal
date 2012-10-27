@@ -34,6 +34,7 @@ public class Connection extends ReceiverAdapter {
 		try {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
+			broadcastMessage(new SignalMessage(getMyAddress(),SignalMessageType.IM_READY));
 			users.addAll(getMembers());
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -79,11 +80,6 @@ public class Connection extends ReceiverAdapter {
 		Collection<Address> disjunction = CollectionUtils.disjunction(
 				newMembers, users);
 		users.addAll(disjunction);
-		for (Address address : disjunction) {
-			System.out.println("NUEVO: " + address);
-			processor.addNotification(new SignalMessage(address,
-					SignalMessageType.NEW_NODE));
-		}
 	}
 
 	@Override
@@ -105,6 +101,9 @@ public class Connection extends ReceiverAdapter {
 		case SignalMessageType.BACK_UP:
 			processor.addBackup(msg.getSrc(), message.getBackup());
 			break;
+		case SignalMessageType.BACK_UPS:
+			processor.addBackups(msg.getSrc(), message.getBackupList());
+			break;
 		case SignalMessageType.CHANGE_BACK_UP_OWNER:
 			processor.changeBackupOwner(message.getAddress(),
 					message.getSignals());
@@ -118,6 +117,10 @@ public class Connection extends ReceiverAdapter {
 			break;
 		case SignalMessageType.ADD_BACKUP_OWNER:
 			processor.changeWhoBackupMySignal(message.getAddress(),message.getSignal());
+			break;
+		case SignalMessageType.IM_READY:
+			processor.addNotification(new SignalMessage(message.getAddress(),
+					SignalMessageType.NEW_NODE));
 			break;
 
 		/** For notifications **/
