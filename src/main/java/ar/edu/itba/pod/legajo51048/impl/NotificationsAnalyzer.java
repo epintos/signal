@@ -72,6 +72,7 @@ public class NotificationsAnalyzer extends Thread {
 				case SignalMessageType.ADD_SIGNALS_ACK:
 					sendSignals.remove(notification.getAddress(),
 							notification.getSignals());
+					//Tell everyone that some backup owners have changed
 					connection.broadcastMessage(new SignalMessage(notification
 							.getAddress(), notification.getSignals(),
 							SignalMessageType.CHANGE_BACK_UP_OWNER));

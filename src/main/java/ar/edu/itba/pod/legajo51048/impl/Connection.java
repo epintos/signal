@@ -34,7 +34,9 @@ public class Connection extends ReceiverAdapter {
 		try {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
-			broadcastMessage(new SignalMessage(getMyAddress(),SignalMessageType.IM_READY));
+			// Notifiy all that i'm ready to receive orders.
+			broadcastMessage(new SignalMessage(getMyAddress(),
+					SignalMessageType.IM_READY));
 			users.addAll(getMembers());
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -114,11 +116,14 @@ public class Connection extends ReceiverAdapter {
 			processor.removeBackups(msg.getSrc());
 			break;
 		case SignalMessageType.ADD_BACKUP_OWNER:
-			processor.changeWhoBackupMySignal(message.getAddress(),message.getSignal());
+			processor.changeWhoBackupMySignal(message.getAddress(),
+					message.getSignal());
 			break;
 		case SignalMessageType.IM_READY:
-			processor.addNotification(new SignalMessage(message.getAddress(),
-					SignalMessageType.NEW_NODE));
+			if (!message.getAddress().equals(getMyAddress())) {
+				processor.addNotification(new SignalMessage(message
+						.getAddress(), SignalMessageType.NEW_NODE));
+			}
 			break;
 
 		/** For notifications **/
@@ -146,10 +151,6 @@ public class Connection extends ReceiverAdapter {
 
 	public Address getMyAddress() {
 		return channel.getAddress();
-	}
-
-	public Set<Address> getUsers() {
-		return users;
 	}
 
 }
