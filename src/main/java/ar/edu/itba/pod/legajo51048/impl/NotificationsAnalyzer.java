@@ -66,62 +66,66 @@ public class NotificationsAnalyzer extends Thread {
 					}
 					break;
 				case SignalMessageType.ADD_SIGNAL_ACK:
-					if(!sendSignals.remove(notification.getAddress(),
-							notification.getSignal())){
-						System.out.println("esto no deberia pasar");
+					if (!sendSignals.remove(notification.getAddress(),
+							notification.getSignal())) {
+						System.out.println("esto no deberia pasar "
+								+ SignalMessageType.ADD_SIGNAL_ACK);
 					}
 					processor.distributeBackup(notification.getAddress(),
 							notification.getSignal());
 					break;
 				case SignalMessageType.ADD_SIGNALS_ACK:
-					if (!sendSignals.remove(notification.getAddress(),
-							notification.getSignals())) {
-						System.out.println("esto no deberia pasar");
+					synchronized (sendSignals) {
+						for (Signal s : notification.getSignals()) {
+							if (!sendSignals.remove(notification.getAddress(),
+									s)) {
+								System.out.println("esto no deberia pasar "
+										+ SignalMessageType.ADD_SIGNALS_ACK);
+								System.out.println("de donde vino: "+notification.getAddress());
+							}
+						}
 					}
 					// Tell everyone that some backup owners have changed
 					connection.broadcastMessage(new SignalMessage(notification
 							.getAddress(), notification.getSignals(),
 							SignalMessageType.CHANGE_BACK_UP_OWNER));
 					break;
-				case SignalMessageType.BACKUP_REDISTRIBUTION_ACK:
-					if(!sendSignals.remove(notification.getAddress(),
-							notification.getSignals())){
-						System.out.println("esto no deberia pasar");
-					}
-					for (Signal signal : notification.getSignals()) {
-						processor.distributeBackup(notification.getAddress(),
-								signal);
+				case SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK:
+					synchronized (sendSignals) {
+						for (Signal s : notification.getSignals()) {
+							if (!sendSignals.remove(notification.getAddress(),
+									s)) {
+								System.out.println("esto no deberia pasar "
+										+ SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK);
+								System.out.println("de donde vino: "+notification.getAddress());
+								processor.distributeBackup(notification.getAddress(),
+										s);
+							}
+						}
 					}
 					break;
 				case SignalMessageType.ADD_BACKUP_ACK:
 					if (!sendBackups.remove(notification.getAddress(),
 							notification.getBackup())) {
-						System.out.println("no deberia pasar");
+						System.out.println("no deberia pasar "
+								+ SignalMessageType.ADD_BACKUP_ACK);
 					}
 
 					Address signalOwner = notification.getBackup().getAddress();
 					// If I am the owner of the signal...
 					if (connection.getMyAddress().equals(signalOwner)) {
-						System.out.println("nodo 1 deberia entrar aca");
 						mySignalsBackup.put(notification.getAddress(),
 								notification.getBackup().getSignal());
 					} else {
-						connection.sendMessageTo(signalOwner,
-								new SignalMessage(notification.getAddress(),
-										notification.getBackup().getSignal(),
-										SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
+						connection
+								.sendMessageTo(
+										signalOwner,
+										new SignalMessage(
+												notification.getAddress(),
+												notification.getBackup()
+														.getSignal(),
+												SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 					}
-					// if
-					// (signals.contains(notification.getBackup().getSignal()))
-					// {
-					// if(notification.get)
-					// } else {
-					// connection.sendMessageTo(notification.getBackup()
-					// .getAddress(),
-					// new SignalMessage(notification.getAddress(),
-					// notification.getBackup().getSignal(),
-					// SignalMessageType.ADD_BACKUP_OWNER));
-					// }
 					break;
 				case SignalMessageType.ADD_BACKUPS_ACK:
 					for (Backup b : notification.getBackupList()) {

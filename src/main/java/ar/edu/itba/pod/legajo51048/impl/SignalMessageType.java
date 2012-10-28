@@ -28,7 +28,7 @@ public interface SignalMessageType {
 	public static final String ADD_BACKUP_ACK = "ADD_BACKUP_ACK";
 	public static final String ADD_BACKUP_NACK = "ADD_BACKUP_NACK";
 	public static final String ADD_BACKUPS_ACK = "ADD_BACKUPS_ACK";
-	public static final String BACKUP_REDISTRIBUTION_ACK = "BACKUP_REDISTRIBUTION_ACK";
+	public static final String BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK = "BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK";
 	public static final String BACKUP_REDISTRIBUTION_NACK = "BACKUP_REDISTRIBUTION_NACK";
 	public static final String NEW_NODE = "NEW_NODE";
 
