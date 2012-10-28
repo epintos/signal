@@ -12,6 +12,11 @@ import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
+/**
+ * Class that represents a channel connection with Jgroup
+ * @author Esteban G. Pintos
+ *
+ */
 public class Connection extends ReceiverAdapter {
 	private JChannel channel;
 	private String clusterName = null;
@@ -115,7 +120,7 @@ public class Connection extends ReceiverAdapter {
 		case SignalMessageType.BYE_NODE:
 			processor.removeBackups(msg.getSrc());
 			break;
-		case SignalMessageType.ADD_BACKUP_OWNER:
+		case SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL:
 			processor.changeWhoBackupMySignal(message.getAddress(),
 					message.getSignal());
 			break;

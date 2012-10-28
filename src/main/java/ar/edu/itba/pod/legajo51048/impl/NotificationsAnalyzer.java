@@ -32,7 +32,8 @@ public class NotificationsAnalyzer extends Thread {
 			Multimap<Address, Signal> sendSignals,
 			MultithreadedSignalProcessor processor,
 			Multimap<Address, Signal> mySignalsBackup,
-			Multimap<Address, Backup> sendBackups, List<FindRequest> requests) {
+			Multimap<Address, Backup> sendBackups, List<FindRequest> requests,
+			Connection connection) {
 		this.signals = signals;
 		this.notifications = notifications;
 		this.sendSignals = sendSignals;
@@ -40,10 +41,11 @@ public class NotificationsAnalyzer extends Thread {
 		this.mySignalsBackup = mySignalsBackup;
 		this.sendBackups = sendBackups;
 		this.requests = requests;
+		this.connection = connection;
 	}
 
-	public void setConnection(Connection connection) {
-		this.connection = connection;
+	public void finish() {
+		finishedAnalyzer.set(true);
 	}
 
 	@Override
@@ -64,40 +66,62 @@ public class NotificationsAnalyzer extends Thread {
 					}
 					break;
 				case SignalMessageType.ADD_SIGNAL_ACK:
-					sendSignals.remove(notification.getAddress(),
-							notification.getSignal());
+					if(!sendSignals.remove(notification.getAddress(),
+							notification.getSignal())){
+						System.out.println("esto no deberia pasar");
+					}
 					processor.distributeBackup(notification.getAddress(),
 							notification.getSignal());
 					break;
 				case SignalMessageType.ADD_SIGNALS_ACK:
-					sendSignals.remove(notification.getAddress(),
-							notification.getSignals());
-					//Tell everyone that some backup owners have changed
+					if (!sendSignals.remove(notification.getAddress(),
+							notification.getSignals())) {
+						System.out.println("esto no deberia pasar");
+					}
+					// Tell everyone that some backup owners have changed
 					connection.broadcastMessage(new SignalMessage(notification
 							.getAddress(), notification.getSignals(),
 							SignalMessageType.CHANGE_BACK_UP_OWNER));
 					break;
 				case SignalMessageType.BACKUP_REDISTRIBUTION_ACK:
-					sendSignals.remove(notification.getAddress(),
-							notification.getSignals());
+					if(!sendSignals.remove(notification.getAddress(),
+							notification.getSignals())){
+						System.out.println("esto no deberia pasar");
+					}
 					for (Signal signal : notification.getSignals()) {
 						processor.distributeBackup(notification.getAddress(),
 								signal);
 					}
 					break;
 				case SignalMessageType.ADD_BACKUP_ACK:
-					sendBackups.remove(notification.getAddress(),
-							notification.getBackup());
-					if (signals.contains(notification.getBackup().getSignal())) {
+					if (!sendBackups.remove(notification.getAddress(),
+							notification.getBackup())) {
+						System.out.println("no deberia pasar");
+					}
+
+					Address signalOwner = notification.getBackup().getAddress();
+					// If I am the owner of the signal...
+					if (connection.getMyAddress().equals(signalOwner)) {
+						System.out.println("nodo 1 deberia entrar aca");
 						mySignalsBackup.put(notification.getAddress(),
 								notification.getBackup().getSignal());
 					} else {
-						connection.sendMessageTo(notification.getBackup()
-								.getAddress(),
+						connection.sendMessageTo(signalOwner,
 								new SignalMessage(notification.getAddress(),
 										notification.getBackup().getSignal(),
-										SignalMessageType.ADD_BACKUP_OWNER));
+										SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 					}
+					// if
+					// (signals.contains(notification.getBackup().getSignal()))
+					// {
+					// if(notification.get)
+					// } else {
+					// connection.sendMessageTo(notification.getBackup()
+					// .getAddress(),
+					// new SignalMessage(notification.getAddress(),
+					// notification.getBackup().getSignal(),
+					// SignalMessageType.ADD_BACKUP_OWNER));
+					// }
 					break;
 				case SignalMessageType.ADD_BACKUPS_ACK:
 					for (Backup b : notification.getBackupList()) {
@@ -112,7 +136,7 @@ public class NotificationsAnalyzer extends Thread {
 											new SignalMessage(
 													notification.getAddress(),
 													b.getSignal(),
-													SignalMessageType.ADD_BACKUP_OWNER));
+													SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 						}
 					}
 					break;
@@ -129,9 +153,5 @@ public class NotificationsAnalyzer extends Thread {
 			} catch (InterruptedException e) {
 			}
 		}
-	}
-
-	public void finish() {
-		finishedAnalyzer.set(true);
 	}
 }

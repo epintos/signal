@@ -16,7 +16,7 @@ public interface SignalMessageType {
 	public static final String FIND_SIMILAR = "FIND_SIMILAR";
 	public static final String ASKED_RESULT = "ASKED_RESULT";
 	public static final String SIGNAL_REDISTRIBUTION = "SIGNAL_REDISTRIBUTION";
-	public static final String ADD_BACKUP_OWNER = "ADD_BACKUP_OWNER";
+	public static final String CHANGE_WHO_BACK_UP_MYSIGNAL = "CHANGE_WHO_BACK_UP_MYSIGNAL";
 	public static final String IM_READY = "IM_READY";
 
 	/** For node notifications **/
