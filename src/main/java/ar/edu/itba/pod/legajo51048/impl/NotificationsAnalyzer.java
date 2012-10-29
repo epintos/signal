@@ -76,19 +76,18 @@ public class NotificationsAnalyzer extends Thread {
 					break;
 				case SignalMessageType.ADD_SIGNALS_ACK:
 					synchronized (sendSignals) {
-						for (Signal s : notification.getSignals()) {
-							if (!sendSignals.remove(notification.getAddress(),
-									s)) {
-								System.out.println("esto no deberia pasar "
-										+ SignalMessageType.ADD_SIGNALS_ACK);
-								System.out.println("de donde vino: "
-										+ notification.getAddress());
-							}
+						if (!sendSignals.get(notification.getAddress())
+								.removeAll(notification.getSignals())) {
+							System.out.println("esto no deberia pasar "
+									+ SignalMessageType.ADD_SIGNALS_ACK);
+							System.out.println("de donde vino: "
+									+ notification.getAddress());
 						}
 					}
 					// Tell everyone that some backup owners have changed
-					connection.broadcastMessage(new SignalMessage(notification
-							.getAddress(), notification.getSignals(),
+					Address signalOwner = notification.getAddress();
+					connection.broadcastMessage(new SignalMessage(signalOwner,
+							notification.getSignals(),
 							SignalMessageType.CHANGE_BACK_UP_OWNER));
 					break;
 				case SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK:
@@ -114,7 +113,7 @@ public class NotificationsAnalyzer extends Thread {
 								+ SignalMessageType.ADD_BACKUP_ACK);
 					}
 
-					Address signalOwner = notification.getBackup().getAddress();
+					signalOwner = notification.getBackup().getAddress();
 					// If I am the owner of the signal...
 					if (connection.getMyAddress().equals(signalOwner)) {
 						mySignalsBackup.put(notification.getAddress(),
@@ -137,9 +136,10 @@ public class NotificationsAnalyzer extends Thread {
 									+ SignalMessageType.ADD_BACKUPS_ACK);
 						}
 						if (signals.contains(b.getSignal())) {
-//							mySignalsBackup.put(notification.getAddress(),
-//									b.getSignal());
-							processor.changeWhoBackupMySignal(notification.getAddress(), b.getSignal());
+							// mySignalsBackup.put(notification.getAddress(),
+							// b.getSignal());
+							processor.changeWhoBackupMySignal(
+									notification.getAddress(), b.getSignal());
 						} else {
 							connection
 									.sendMessageTo(

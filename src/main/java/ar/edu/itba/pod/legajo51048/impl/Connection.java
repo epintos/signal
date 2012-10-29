@@ -14,8 +14,9 @@ import org.jgroups.View;
 
 /**
  * Class that represents a channel connection with Jgroup
+ * 
  * @author Esteban G. Pintos
- *
+ * 
  */
 public class Connection extends ReceiverAdapter {
 	private JChannel channel;
@@ -110,8 +111,10 @@ public class Connection extends ReceiverAdapter {
 			processor.addBackups(msg.getSrc(), message.getBackupList());
 			break;
 		case SignalMessageType.CHANGE_BACK_UP_OWNER:
-			processor.changeBackupOwner(message.getAddress(),
-					message.getSignals());
+			if (!getMyAddress().equals(message.getAddress())) {
+				processor.changeBackupOwner(msg.getSrc(), message.getAddress(),
+						message.getSignals());
+			}
 			break;
 		case SignalMessageType.FIND_SIMILAR:
 			processor.findMySimilars(msg.getSrc(), message.getSignal(),
