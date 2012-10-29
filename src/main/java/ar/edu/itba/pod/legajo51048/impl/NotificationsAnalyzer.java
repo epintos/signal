@@ -98,9 +98,9 @@ public class NotificationsAnalyzer extends Thread {
 								System.out.println("esto no deberia pasar "
 										+ SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK);
 								System.out.println("de donde vino: "+notification.getAddress());
-								processor.distributeBackup(notification.getAddress(),
-										s);
 							}
+							processor.distributeBackup(notification.getAddress(),
+									s);
 						}
 					}
 					break;

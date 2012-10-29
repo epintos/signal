@@ -235,25 +235,27 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 		BlockingQueue<Signal> newSignals = new LinkedBlockingQueue<Signal>(
 				backups.get(address));
-		if(newSignals.isEmpty()){
+		System.out.println("tamaño posta: " + newSignals.size());
+		if (newSignals.isEmpty()) {
 			return;
 		}
 		if (membersQty != 1) {
-			int sizeToDistribute = newSignals.size() % 2 == 0 ? newSignals
-					.size() : (newSignals.size() + 1) / membersQty;
+			int mod = newSignals.size() % membersQty;
+			int sizeToDistribute = mod == 0 ? newSignals.size() : (newSignals
+					.size() + mod) / membersQty;
 			Address myAddress = connection.getMyAddress();
 			int random = 0;
 			List<Address> chosen = new ArrayList<Address>();
 			for (int i = 0; i < membersQty; i++) {
 				while (chosen
-						.contains(members.get(random = random(membersQty)))
-						&& membersQty != 1)
+						.contains(members.get(random = random(membersQty))))
 					;
 				Address futureOwner = members.get(random);
 				chosen.add(futureOwner);
 				// For Two members case
 				List<Signal> auxList = new ArrayList<Signal>();
-				newSignals.drainTo(auxList, sizeToDistribute);
+				System.out.println("sacado: "
+						+ newSignals.drainTo(auxList, sizeToDistribute));
 				if (!futureOwner.equals(myAddress)) {
 					System.out.println("distinto");
 					if (isBackup) {
