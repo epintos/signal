@@ -235,15 +235,27 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 		BlockingQueue<Signal> newSignals = new LinkedBlockingQueue<Signal>(
 				backups.get(address));
+		if(newSignals.isEmpty()){
+			return;
+		}
 		if (membersQty != 1) {
-			int sizeToDistribute = newSignals.size() / membersQty;
+			int sizeToDistribute = newSignals.size() % 2 == 0 ? newSignals
+					.size() : (newSignals.size() + 1) / membersQty;
 			Address myAddress = connection.getMyAddress();
+			int random = 0;
+			List<Address> chosen = new ArrayList<Address>();
 			for (int i = 0; i < membersQty; i++) {
-				Address futureOwner = members.get(i);
+				while (chosen
+						.contains(members.get(random = random(membersQty)))
+						&& membersQty != 1)
+					;
+				Address futureOwner = members.get(random);
+				chosen.add(futureOwner);
 				// For Two members case
+				List<Signal> auxList = new ArrayList<Signal>();
+				newSignals.drainTo(auxList, sizeToDistribute);
 				if (!futureOwner.equals(myAddress)) {
-					List<Signal> auxList = new ArrayList<Signal>();
-					newSignals.drainTo(auxList, sizeToDistribute);
+					System.out.println("distinto");
 					if (isBackup) {
 						List<Backup> backupList = new ArrayList<Backup>();
 						for (Signal s : auxList) {
@@ -262,13 +274,16 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 												SignalMessageType.SIGNAL_REDISTRIBUTION));
 						this.sendSignals.putAll(futureOwner, auxList);
 					}
-					// Won't happen if there were 2 members
+					// Won't happen if there were 2 members or more
 				} else {
-					Collection<Signal> fromBackupSignals = backups
-							.removeAll(address);
-					this.signals.addAll(fromBackupSignals);
-					for (Signal signal : fromBackupSignals) {
-						distributeBackup(futureOwner, signal);
+					System.out.println("igual");
+					if (isBackup) {
+
+					} else {
+						this.signals.addAll(auxList);
+						for (Signal signal : auxList) {
+							distributeBackup(myAddress, signal);
+						}
 					}
 
 				}
@@ -276,14 +291,23 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			backups.removeAll(address);
 		} else {
 			if (isBackup) {
-				this.backups.putAll(connection.getMyAddress(), newSignals);
+				// this.backups.putAll(connection.getMyAddress(), newSignals);
 			} else {
 				this.signals.addAll(newSignals);
 				if (connection != null) {
-					backups.putAll(connection.getMyAddress(), newSignals);
+					this.backups.removeAll(address);
+					this.backups.putAll(connection.getMyAddress(), newSignals);
+					// changeBackupOwner(connection.getMyAddress(),
+					// new ArrayList<Signal>(newSignals));
+					// backups.putAll(connection.getMyAddress(), newSignals);
 				}
+				backups.putAll(connection.getMyAddress(),
+						this.mySignalsBackup.get(address));
+				this.mySignalsBackup.clear();
+				this.mySignalsBackup.putAll(connection.getMyAddress(),
+						this.signals);
 			}
-			backups.removeAll(address);
+			// backups.removeAll(address);
 		}
 	}
 
@@ -375,10 +399,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					distributeBackup(connection.getMyAddress(), signal);
 					this.backups.remove(connection.getMyAddress(), signal);
 				}
-			}else{
-//				if(!this.mySignalsBackup.remove(connection.getMyAddress(), distSignals)){
-//					System.out.println("no se remueve nada");
-//				}
+			} else {
+				// if(!this.mySignalsBackup.remove(connection.getMyAddress(),
+				// distSignals)){
+				// System.out.println("no se remueve nada");
+				// }
 				removeWhoBackupMySignal(null, distSignals);
 			}
 		}
