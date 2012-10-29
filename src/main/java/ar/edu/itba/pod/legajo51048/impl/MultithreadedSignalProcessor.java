@@ -367,14 +367,19 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			// There was only 1 node, so backup must be distributed
 			if (membersQty == 2) {
 				// Remove from mySignalsBackup the distributed signals
-//				removeWhoBackupMySignal(to, distSignals);
-				mySignalsBackup.removeAll(connection.getMyAddress());
+				// removeWhoBackupMySignal(to, distSignals);
+				this.mySignalsBackup.removeAll(connection.getMyAddress());
 				for (Signal signal : signalsQueue) {
 					// Distribute backup of those signals that are still owned
 					// by this node
 					distributeBackup(connection.getMyAddress(), signal);
 					this.backups.remove(connection.getMyAddress(), signal);
 				}
+			}else{
+//				if(!this.mySignalsBackup.remove(connection.getMyAddress(), distSignals)){
+//					System.out.println("no se remueve nada");
+//				}
+				removeWhoBackupMySignal(null, distSignals);
 			}
 		}
 	}
@@ -446,7 +451,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					// vuelta y
 					// hay dos backups tambien
 					if (signals.contains(signal)) {
-						if (!changeOwner) {
+						if (!changeOwner && addBackup) {
 							indexed.add(signal);
 						}
 						toRemove.put(oldOwner, signal);
@@ -465,9 +470,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 							connection.getMyAddress(), signal,
 							SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 					// Tell the old owner of the signals who has his backups
-//					connection.sendMessageTo(oldOwner, new SignalMessage(
-//							connection.getMyAddress(), signal,
-//							SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
+					// connection.sendMessageTo(oldOwner, new SignalMessage(
+					// connection.getMyAddress(), signal,
+					// SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 				}
 				backupMap.remove(oldOwner, signal);
 			}
