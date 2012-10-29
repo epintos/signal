@@ -90,14 +90,14 @@ public class NotificationsAnalyzer extends Thread {
 							notification.getSignals(),
 							SignalMessageType.CHANGE_BACK_UP_OWNER));
 					break;
-				case SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK:
+				case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
 					synchronized (sendSignals) {
 						for (Signal s : notification.getSignals()) {
 							if (!sendSignals.remove(notification.getAddress(),
 									s)) {
 								System.out
 										.println("esto no deberia pasar "
-												+ SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK);
+												+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
 								System.out.println("de donde vino: "
 										+ notification.getAddress());
 							}
@@ -139,7 +139,7 @@ public class NotificationsAnalyzer extends Thread {
 							// mySignalsBackup.put(notification.getAddress(),
 							// b.getSignal());
 							processor.changeWhoBackupMySignal(
-									notification.getAddress(), b.getSignal());
+									notification.getAddress(), b.getSignal(),true);
 						} else {
 							connection
 									.sendMessageTo(

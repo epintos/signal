@@ -247,7 +247,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (membersQty != 1) {
 			int mod = 0;
 			int sizeToDistribute = 0;
-			System.out.println("members: " + membersQty);
 			if (isBackup) {
 				System.out.println("isBackup");
 				mod = newSignals.size() % (membersQty - 1);
@@ -270,15 +269,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			}
 			int cicles = isBackup ? membersQty - 1 : membersQty;
 			for (int i = 0; i < cicles; i++) {
-				System.out.println("ciclo: " + i);
 				while (chosen
 						.contains(members.get(random = random(membersQty))))
 					;
 				Address futureOwner = members.get(random);
 				chosen.add(futureOwner);
-				// For Two members case
 				List<Signal> auxList = new ArrayList<Signal>();
-				if (cicles == i - 1) {
+				if (i == cicles - 1) {
 					sizeToDistribute = newSignals.size();
 				}
 				System.out.println("sacado: "
@@ -304,12 +301,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 										new SignalMessage(
 												connection.getMyAddress(),
 												auxList,
-												SignalMessageType.SIGNAL_REDISTRIBUTION));
+												SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP));
 						this.sendSignals.putAll(futureOwner, auxList);
 					}
 				} else {
-					// Won't happen if there were 2 members or more nodes
 					if (isBackup) {
+						// Won't happen if there were 2 members or more
 						System.out.println("no deberia pasar");
 					} else {
 						this.signals.addAll(auxList);
@@ -323,7 +320,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			backups.removeAll(address);
 		} else {
 			if (isBackup) {
-				// this.backups.putAll(connection.getMyAddress(), newSignals);
+				// do nothing
 			} else {
 				this.signals.addAll(newSignals);
 				if (connection != null) {
@@ -339,7 +336,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				this.mySignalsBackup.putAll(connection.getMyAddress(),
 						this.signals);
 			}
-			// backups.removeAll(address);
 		}
 	}
 
@@ -488,10 +484,14 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            New owner of the backup
 	 * @param signal
 	 */
-	protected void changeWhoBackupMySignal(Address address, Signal signal) {
+	protected void changeWhoBackupMySignal(Address address, Signal signal, boolean remove) {
 		// List<Signal> list = new ArrayList<Signal>();
 		// list.add(signal);
 		// changeBackupOwner(address, list, this.mySignalsBackup, false, true);
+		
+		if(remove){
+			this.mySignalsBackup.get(connection.getMyAddress()).remove(signal);
+		}
 		this.mySignalsBackup.put(address, signal);
 	}
 
@@ -507,57 +507,57 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            Indicates if the owner of the signals has to be notified of
 	 *            the changed
 	 */
-	@SuppressWarnings("unchecked")
-	protected void changeBackupOwner(Address newOwner, List<Signal> signals,
-			Multimap<Address, Signal> backupMap, boolean changeOwner,
-			boolean addBackup) {
-		Multimap<Address, Signal> toRemove;
-		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
-		toRemove = Multimaps.synchronizedListMultimap(list);
-		List<Signal> indexed = new ArrayList<Signal>();
-		synchronized (backupMap) {
-			for (Address oldOwner : backupMap.keySet()) {
-				for (Signal signal : backupMap.get(oldOwner)) {
-					// TODO: Ver que pasa si hay dos señales iguales dando
-					// vuelta y
-					// hay dos backups tambien
-					if (signals.contains(signal)) {
-						if (!changeOwner && addBackup) {
-							indexed.add(signal);
-						}
-						toRemove.put(oldOwner, signal);
-						if (addBackup) {
-							backupMap.put(newOwner, signal);
-						}
-					}
-				}
-			}
-		}
-		for (Address oldOwner : toRemove.keySet()) {
-			for (Signal signal : toRemove.get(oldOwner)) {
-				if (changeOwner) {
-					// Tell the new owner of the node who has his backups
-					connection.sendMessageTo(newOwner, new SignalMessage(
-							connection.getMyAddress(), signal,
-							SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
-					// Tell the old owner of the signals who has his backups
-					// connection.sendMessageTo(oldOwner, new SignalMessage(
-					// connection.getMyAddress(), signal,
-					// SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
-				}
-				backupMap.remove(oldOwner, signal);
-			}
-		}
-
-		if (!changeOwner && addBackup) {
-			// Those that didn't appeared in the map
-			Collection<Signal> disjunction = CollectionUtils.disjunction(
-					signals, indexed);
-			for (Signal signal : disjunction) {
-				backupMap.put(newOwner, signal);
-			}
-		}
-	}
+	// @SuppressWarnings("unchecked")
+	// protected void changeBackupOwner(Address newOwner, List<Signal> signals,
+	// Multimap<Address, Signal> backupMap, boolean changeOwner,
+	// boolean addBackup) {
+	// Multimap<Address, Signal> toRemove;
+	// ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
+	// toRemove = Multimaps.synchronizedListMultimap(list);
+	// List<Signal> indexed = new ArrayList<Signal>();
+	// synchronized (backupMap) {
+	// for (Address oldOwner : backupMap.keySet()) {
+	// for (Signal signal : backupMap.get(oldOwner)) {
+	// // TODO: Ver que pasa si hay dos señales iguales dando
+	// // vuelta y
+	// // hay dos backups tambien
+	// if (signals.contains(signal)) {
+	// if (!changeOwner && addBackup) {
+	// indexed.add(signal);
+	// }
+	// toRemove.put(oldOwner, signal);
+	// if (addBackup) {
+	// backupMap.put(newOwner, signal);
+	// }
+	// }
+	// }
+	// }
+	// }
+	// for (Address oldOwner : toRemove.keySet()) {
+	// for (Signal signal : toRemove.get(oldOwner)) {
+	// if (changeOwner) {
+	// // Tell the new owner of the node who has his backups
+	// connection.sendMessageTo(newOwner, new SignalMessage(
+	// connection.getMyAddress(), signal,
+	// SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
+	// // Tell the old owner of the signals who has his backups
+	// // connection.sendMessageTo(oldOwner, new SignalMessage(
+	// // connection.getMyAddress(), signal,
+	// // SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
+	// }
+	// backupMap.remove(oldOwner, signal);
+	// }
+	// }
+	//
+	// if (!changeOwner && addBackup) {
+	// // Those that didn't appeared in the map
+	// Collection<Signal> disjunction = CollectionUtils.disjunction(
+	// signals, indexed);
+	// for (Signal signal : disjunction) {
+	// backupMap.put(newOwner, signal);
+	// }
+	// }
+	// }
 
 	/**
 	 * Calculates random value between 0 and limit.
@@ -605,7 +605,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 								connection.getMyAddress(),
 								newSignals,
 								type.equals(SignalMessageType.YOUR_SIGNALS) ? SignalMessageType.ADD_SIGNALS_ACK
-										: SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK));
+										: SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK));
 	}
 
 	/**

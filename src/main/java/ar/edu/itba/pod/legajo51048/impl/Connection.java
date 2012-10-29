@@ -100,9 +100,9 @@ public class Connection extends ReceiverAdapter {
 			processor.addSignals(msg.getSrc(), message.getSignals(),
 					SignalMessageType.YOUR_SIGNALS);
 			break;
-		case SignalMessageType.SIGNAL_REDISTRIBUTION:
+		case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP:
 			processor.addSignals(msg.getSrc(), message.getSignals(),
-					SignalMessageType.SIGNAL_REDISTRIBUTION);
+					SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP);
 			break;
 		case SignalMessageType.BACK_UP:
 			processor.addBackup(msg.getSrc(), message.getBackup());
@@ -125,7 +125,7 @@ public class Connection extends ReceiverAdapter {
 			break;
 		case SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL:
 			processor.changeWhoBackupMySignal(message.getAddress(),
-					message.getSignal());
+					message.getSignal(), false);
 			break;
 		case SignalMessageType.IM_READY:
 			if (!message.getAddress().equals(getMyAddress())) {

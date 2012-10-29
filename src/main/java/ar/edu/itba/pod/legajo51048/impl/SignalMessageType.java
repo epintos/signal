@@ -15,7 +15,7 @@ public interface SignalMessageType {
 	public static final String CHANGE_BACK_UP_OWNER = "CHANGE_BACK_UP_OWNER";
 	public static final String FIND_SIMILAR = "FIND_SIMILAR";
 	public static final String ASKED_RESULT = "ASKED_RESULT";
-	public static final String SIGNAL_REDISTRIBUTION = "SIGNAL_REDISTRIBUTION";
+	public static final String GENERATE_NEW_SIGNALS_FROM_BACKUP = "GENERATE_NEW_SIGNALS_FROM_BACKUP";
 	public static final String CHANGE_WHO_BACK_UP_MYSIGNAL = "CHANGE_WHO_BACK_UP_MYSIGNAL";
 	public static final String IM_READY = "IM_READY";
 
@@ -28,7 +28,7 @@ public interface SignalMessageType {
 	public static final String ADD_BACKUP_ACK = "ADD_BACKUP_ACK";
 	public static final String ADD_BACKUP_NACK = "ADD_BACKUP_NACK";
 	public static final String ADD_BACKUPS_ACK = "ADD_BACKUPS_ACK";
-	public static final String BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK = "BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK";
+	public static final String GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK = "GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK";
 	public static final String BACKUP_REDISTRIBUTION_NACK = "BACKUP_REDISTRIBUTION_NACK";
 	public static final String NEW_NODE = "NEW_NODE";
 
