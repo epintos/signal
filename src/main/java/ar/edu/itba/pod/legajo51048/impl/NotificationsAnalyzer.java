@@ -81,7 +81,8 @@ public class NotificationsAnalyzer extends Thread {
 									s)) {
 								System.out.println("esto no deberia pasar "
 										+ SignalMessageType.ADD_SIGNALS_ACK);
-								System.out.println("de donde vino: "+notification.getAddress());
+								System.out.println("de donde vino: "
+										+ notification.getAddress());
 							}
 						}
 					}
@@ -95,12 +96,14 @@ public class NotificationsAnalyzer extends Thread {
 						for (Signal s : notification.getSignals()) {
 							if (!sendSignals.remove(notification.getAddress(),
 									s)) {
-								System.out.println("esto no deberia pasar "
-										+ SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK);
-								System.out.println("de donde vino: "+notification.getAddress());
+								System.out
+										.println("esto no deberia pasar "
+												+ SignalMessageType.BACKUP_TO_SIGNALS_REDISTRIBUTION_ACK);
+								System.out.println("de donde vino: "
+										+ notification.getAddress());
 							}
-							processor.distributeBackup(notification.getAddress(),
-									s);
+							processor.distributeBackup(
+									notification.getAddress(), s);
 						}
 					}
 					break;
@@ -129,10 +132,14 @@ public class NotificationsAnalyzer extends Thread {
 					break;
 				case SignalMessageType.ADD_BACKUPS_ACK:
 					for (Backup b : notification.getBackupList()) {
-						sendBackups.remove(notification.getAddress(), b);
+						if (!sendBackups.remove(notification.getAddress(), b)) {
+							System.out.println("no deberia pasar "
+									+ SignalMessageType.ADD_BACKUPS_ACK);
+						}
 						if (signals.contains(b.getSignal())) {
-							mySignalsBackup.put(notification.getAddress(),
-									b.getSignal());
+//							mySignalsBackup.put(notification.getAddress(),
+//									b.getSignal());
+							processor.changeWhoBackupMySignal(notification.getAddress(), b.getSignal());
 						} else {
 							connection
 									.sendMessageTo(

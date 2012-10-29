@@ -240,13 +240,30 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			return;
 		}
 		if (membersQty != 1) {
-			int mod = newSignals.size() % membersQty;
-			int sizeToDistribute = mod == 0 ? newSignals.size() : (newSignals
-					.size() + mod) / membersQty;
+			int mod = 0;
+			int sizeToDistribute = 0;
+			System.out.println("members: " + membersQty);
+			if (isBackup) {
+				System.out.println("isBackup");
+				mod = newSignals.size() % (membersQty - 1);
+				sizeToDistribute = mod == 0 ? newSignals.size()
+						/ (membersQty - 1) : (newSignals.size() + mod)
+						/ (membersQty - 1);
+			} else {
+				System.out.println("!isBackup");
+				mod = newSignals.size() % membersQty;
+				sizeToDistribute = mod == 0 ? newSignals.size() / membersQty
+						: (newSignals.size() + mod) / membersQty;
+			}
 			Address myAddress = connection.getMyAddress();
 			int random = 0;
 			List<Address> chosen = new ArrayList<Address>();
 			for (int i = 0; i < membersQty; i++) {
+				if (isBackup) {
+					// Can't send the backups to me, because the signals are
+					// mine
+					chosen.add(myAddress);
+				}
 				while (chosen
 						.contains(members.get(random = random(membersQty))))
 					;
@@ -257,16 +274,19 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				System.out.println("sacado: "
 						+ newSignals.drainTo(auxList, sizeToDistribute));
 				if (!futureOwner.equals(myAddress)) {
-					System.out.println("distinto");
 					if (isBackup) {
 						List<Backup> backupList = new ArrayList<Backup>();
+						// Distribute those backups that were mine and got lost
+						// with the node fallen
 						for (Signal s : auxList) {
-							backupList.add(new Backup(address, s));
+							backupList.add(new Backup(
+									connection.getMyAddress(), s));
 						}
 						connection.sendMessageTo(futureOwner,
 								new SignalMessage(SignalMessageType.BACK_UPS,
 										backupList));
 						this.sendBackups.putAll(futureOwner, backupList);
+						membersQty--;
 					} else {
 						connection
 								.sendMessageTo(
@@ -276,11 +296,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 												SignalMessageType.SIGNAL_REDISTRIBUTION));
 						this.sendSignals.putAll(futureOwner, auxList);
 					}
-					// Won't happen if there were 2 members or more
 				} else {
-					System.out.println("igual");
+					// Won't happen if there were 2 members or more nodes
 					if (isBackup) {
-
+						System.out.println("no deberia pasar");
 					} else {
 						this.signals.addAll(auxList);
 						for (Signal signal : auxList) {
