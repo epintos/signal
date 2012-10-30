@@ -2,7 +2,6 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -14,9 +13,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.NodeStats;
@@ -61,7 +60,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private final List<FindRequest> requests;
 
 	// Processing threads
-	private final ExecutorService executor;
+	private ExecutorService executor;
 	private NotificationsAnalyzer notificationsAnalyzer;
 	private final int threadsQty;
 
@@ -117,19 +116,35 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		signals.clear();
 		backups.clear();
 		notifications.clear();
+		mySignalsBackup.clear();
+		sendBackups.clear();
+		sendSignals.clear();
+		requests.clear();
 		receivedSignals = new AtomicInteger(0);
 		if (connection != null) {
-			connection.broadcastMessage(SignalMessageType.BYE_NODE);
-			connection.disconnect();
-		}
-		if (notificationsAnalyzer != null) {
-			notificationsAnalyzer.finish();
-			notificationsAnalyzer.interrupt();
-			try {
-				notificationsAnalyzer.join(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			connection.broadcastMessage(new SignalMessage(connection
+					.getMyAddress(), SignalMessageType.BYE_NODE));
+			if (connection.getMembersQty() == 1) {
+				connection.close();
+				connection.disconnect();
+			} else {
+				connection.close();
 			}
+		}
+		try {
+			if (notificationsAnalyzer != null) {
+				notificationsAnalyzer.finish();
+				notificationsAnalyzer.interrupt();
+				notificationsAnalyzer.join(1000);
+			}
+			executor.shutdown();
+			while (!executor.awaitTermination(1000, TimeUnit.MILLISECONDS))
+				;
+			this.executor = Executors.newFixedThreadPool(threadsQty);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -484,12 +499,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            New owner of the backup
 	 * @param signal
 	 */
-	protected void changeWhoBackupMySignal(Address address, Signal signal, boolean remove) {
+	protected void changeWhoBackupMySignal(Address address, Signal signal,
+			boolean remove) {
 		// List<Signal> list = new ArrayList<Signal>();
 		// list.add(signal);
 		// changeBackupOwner(address, list, this.mySignalsBackup, false, true);
-		
-		if(remove){
+
+		if (remove) {
 			this.mySignalsBackup.get(connection.getMyAddress()).remove(signal);
 		}
 		this.mySignalsBackup.put(address, signal);

@@ -144,6 +144,10 @@ public class Connection extends ReceiverAdapter {
 	public void disconnect() {
 		channel.disconnect();
 	}
+	
+	public void close(){
+		channel.close();
+	}
 
 	public String getClusterName() {
 		return this.clusterName;
