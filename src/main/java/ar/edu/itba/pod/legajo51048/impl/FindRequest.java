@@ -16,9 +16,6 @@ import ar.edu.itba.pod.api.Result;
  */
 public class FindRequest {
 
-	// Request id.
-	private int id;
-
 	// Nodes that are included in the request
 	private List<Address> addresses;
 
@@ -30,17 +27,11 @@ public class FindRequest {
 	// Results of the request
 	private List<Result> results;
 
-	public FindRequest(int id, List<Address> addresses, int qty,
-			Semaphore semaphore) {
-		this.id = id;
+	public FindRequest(List<Address> addresses, int qty, Semaphore semaphore) {
 		this.addresses = addresses;
 		this.qty = qty;
 		this.semaphore = semaphore;
 		this.results = new ArrayList<Result>();
-	}
-
-	public int getId() {
-		return id;
 	}
 
 	public List<Address> getAddresses() {
@@ -56,11 +47,15 @@ public class FindRequest {
 	}
 
 	public List<Result> getResults() {
+		if(qty!=0){
+			System.out.println("no deberia pasar, qty!=0");
+		}
 		return results;
 	}
 
 	public void removeAddress(Address address) {
 		this.results.remove(address);
+		qty--;
 	}
 
 	public void addResult(Result result) {

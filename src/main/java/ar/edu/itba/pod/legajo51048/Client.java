@@ -9,12 +9,14 @@ import java.rmi.registry.Registry;
 
 import ar.edu.itba.pod.api.Result;
 import ar.edu.itba.pod.api.SPNode;
+import ar.edu.itba.pod.api.Signal;
 import ar.edu.itba.pod.api.SignalProcessor;
 import ar.edu.itba.pod.signal.source.RandomSource;
 
 public class Client {
 	private final String hostname;
 	private final int port;
+	private Signal toCompareSignal;
 	
 	RandomSource src = new RandomSource();
 
@@ -33,7 +35,7 @@ public class Client {
 			Registry registry = LocateRegistry.getRegistry(hostname, port);
 			SignalProcessor	sp = (SignalProcessor) registry.lookup("SignalProcessor");
 			SPNode node = (SPNode) registry.lookup("SPNode");
-			
+			toCompareSignal = src.next();
 			BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 			printOptions();
 			while (true) {
@@ -47,7 +49,8 @@ public class Client {
 				} else if (line.equals("3")) {
 					node.getStats().print(System.out);
 				} else if (line.equals("4")) {
-					Result results = sp.findSimilarTo(src.next());
+//					Result results = sp.findSimilarTo(src.next());
+					Result results = sp.findSimilarTo(toCompareSignal);
 					System.out.println(">>> Result: " + results);
 				} else if (line.equals("5")) {
 					this.generate(sp, 1);

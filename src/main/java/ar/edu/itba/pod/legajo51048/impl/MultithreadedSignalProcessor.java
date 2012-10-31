@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -57,7 +59,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private final BlockingQueue<SignalMessage> notifications;
 
 	// List containing the find similar request send to other nodes
-	private final List<FindRequest> requests;
+	private final ConcurrentMap<Integer, FindRequest> requests;
 
 	// Processing threads
 	private ExecutorService executor;
@@ -73,13 +75,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	public MultithreadedSignalProcessor(int threadsQty) {
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
 		ArrayListMultimap<Address, Backup> list2 = ArrayListMultimap.create();
-		ArrayListMultimap<Address, Signal> list4 = ArrayListMultimap.create();
 		ArrayListMultimap<Address, Signal> list3 = ArrayListMultimap.create();
+		ArrayListMultimap<Address, Signal> list4 = ArrayListMultimap.create();
 		this.backups = Multimaps.synchronizedListMultimap(list);
 		this.sendBackups = Multimaps.synchronizedListMultimap(list2);
 		this.mySignalsBackup = Multimaps.synchronizedListMultimap(list4);
 		this.notifications = new LinkedBlockingQueue<SignalMessage>();
-		this.requests = new ArrayList<FindRequest>();
+		this.requests = new ConcurrentHashMap<Integer, FindRequest>();
 		this.signals = new LinkedBlockingQueue<Signal>();
 		this.sendSignals = Multimaps.synchronizedListMultimap(list3);
 		this.executor = Executors.newFixedThreadPool(threadsQty);
@@ -673,30 +675,28 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (connection != null) {
 			List<Address> addresses = new ArrayList<Address>(
 					connection.getMembers());
-			addresses.remove(connection.getMyAddress());
-			Semaphore semaphore = new Semaphore(addresses.size());
-			requests.add(new FindRequest(requestId, addresses,
-					addresses.size(), semaphore));
+			// I don't have to send the request to me
 			Address myAddress = connection.getMyAddress();
-			for (Address address : addresses) {
-				connection.sendMessageTo(address, new SignalMessage(myAddress,
-						signal, requestId, SignalMessageType.FIND_SIMILAR));
+			addresses.remove(myAddress);
+			
+			Semaphore semaphore = new Semaphore(0);
+			this.requests.put(requestId,
+					new FindRequest(addresses, addresses.size(), semaphore));
+			connection.broadcastMessage(new SignalMessage(signal, requestId,
+					SignalMessageType.FIND_SIMILAR));
+			try {
+				while(!semaphore.tryAcquire(addresses.size(),1000,TimeUnit.MICROSECONDS)){
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
-			semaphore.tryAcquire(addresses.size());
 		}
 		Result result = findSimilarToAux(signal);
-		Iterator<FindRequest> it = requests.iterator();
-		while (it.hasNext()) {
-			FindRequest request = it.next();
-			if (request.getId() == requestId) {
-				List<Result> results = request.getResults();
-				for (Result otherResult : results) {
-					for (Item item : otherResult.items()) {
-						result = result.include(item);
-					}
-				}
-				it.remove();
-				break;
+		FindRequest request = this.requests.get(requestId);
+		List<Result> results = request.getResults();
+		for (Result otherResult : results) {
+			for (Item item : otherResult.items()) {
+				result = result.include(item);
 			}
 		}
 		return result;
@@ -714,6 +714,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void findMySimilars(Address from, Signal signal, int id) {
 		Result result = findSimilarToAux(signal);
+		System.out.println(connection.getMyAddress() + " findingSimilars...");
 		connection.sendMessageTo(from,
 				new SignalMessage(connection.getMyAddress(), result, id,
 						SignalMessageType.REQUEST_NOTIFICATION));
@@ -729,7 +730,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		List<Callable<Result>> tasks = new ArrayList<Callable<Result>>();
 		try {
 			BlockingQueue<Signal> copy = new LinkedBlockingQueue<Signal>(
-					signals);
+					this.signals);
 			for (int i = 0; i < threadsQty; i++) {
 				// Generate a copy of the signals so they are not lost
 				tasks.add(new FindSimilarWorker(signal, copy));

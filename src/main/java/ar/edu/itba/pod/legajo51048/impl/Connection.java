@@ -92,6 +92,7 @@ public class Connection extends ReceiverAdapter {
 	@Override
 	public void receive(Message msg) {
 		SignalMessage message = (SignalMessage) msg.getObject();
+		Address myAddress = getMyAddress();
 		switch (((SignalMessage) msg.getObject()).getType()) {
 		case SignalMessageType.YOUR_SIGNAL:
 			processor.addSignal(msg.getSrc(), message.getSignal());
@@ -111,14 +112,16 @@ public class Connection extends ReceiverAdapter {
 			processor.addBackups(msg.getSrc(), message.getBackupList());
 			break;
 		case SignalMessageType.CHANGE_BACK_UP_OWNER:
-			if (!getMyAddress().equals(message.getAddress())) {
+			if (!myAddress.equals(message.getAddress())) {
 				processor.changeBackupOwner(msg.getSrc(), message.getAddress(),
 						message.getSignals());
 			}
 			break;
 		case SignalMessageType.FIND_SIMILAR:
-			processor.findMySimilars(msg.getSrc(), message.getSignal(),
-					message.getRequestId());
+			if (!myAddress.equals(msg.getSrc())) {
+				processor.findMySimilars(msg.getSrc(), message.getSignal(),
+						message.getRequestId());
+			}
 			break;
 		case SignalMessageType.BYE_NODE:
 			processor.removeBackups(msg.getSrc());
@@ -144,8 +147,8 @@ public class Connection extends ReceiverAdapter {
 	public void disconnect() {
 		channel.disconnect();
 	}
-	
-	public void close(){
+
+	public void close() {
 		channel.close();
 	}
 

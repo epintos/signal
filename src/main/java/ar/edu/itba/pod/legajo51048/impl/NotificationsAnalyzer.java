@@ -1,7 +1,7 @@
 package ar.edu.itba.pod.legajo51048.impl;
 
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jgroups.Address;
@@ -24,7 +24,7 @@ public class NotificationsAnalyzer extends Thread {
 	private Connection connection;
 	private final Multimap<Address, Signal> mySignalsBackup;
 	private final Multimap<Address, Backup> sendBackups;
-	private final List<FindRequest> requests;
+	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final BlockingQueue<Signal> signals;
 
 	public NotificationsAnalyzer(BlockingQueue<Signal> signals,
@@ -32,8 +32,8 @@ public class NotificationsAnalyzer extends Thread {
 			Multimap<Address, Signal> sendSignals,
 			MultithreadedSignalProcessor processor,
 			Multimap<Address, Signal> mySignalsBackup,
-			Multimap<Address, Backup> sendBackups, List<FindRequest> requests,
-			Connection connection) {
+			Multimap<Address, Backup> sendBackups,
+			ConcurrentMap<Integer, FindRequest> requests, Connection connection) {
 		this.signals = signals;
 		this.notifications = notifications;
 		this.sendSignals = sendSignals;
@@ -56,14 +56,11 @@ public class NotificationsAnalyzer extends Thread {
 				notification = notifications.take();
 				switch (notification.getType()) {
 				case SignalMessageType.REQUEST_NOTIFICATION:
-					for (FindRequest request : requests) {
-						if (request.getId() == notification.getRequestId()) {
-							request.removeAddress(notification.getAddress());
-							request.addResult(notification.getResult());
-							request.getSemaphore().release();
-							break;
-						}
-					}
+					FindRequest request = requests.get(notification
+							.getRequestId());
+					request.removeAddress(notification.getAddress());
+					request.addResult(notification.getResult());
+					request.getSemaphore().release();
 					break;
 				case SignalMessageType.ADD_SIGNAL_ACK:
 					if (!sendSignals.remove(notification.getAddress(),
@@ -139,7 +136,8 @@ public class NotificationsAnalyzer extends Thread {
 							// mySignalsBackup.put(notification.getAddress(),
 							// b.getSignal());
 							processor.changeWhoBackupMySignal(
-									notification.getAddress(), b.getSignal(),true);
+									notification.getAddress(), b.getSignal(),
+									true);
 						} else {
 							connection
 									.sendMessageTo(
