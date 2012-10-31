@@ -27,6 +27,10 @@ public class FindRequest {
 	// Results of the request
 	private List<Result> results;
 
+	private boolean finishedOk = true;
+
+	private List<Address> finishedDistributing = new ArrayList<Address>();
+
 	public FindRequest(List<Address> addresses, int qty, Semaphore semaphore) {
 		this.addresses = addresses;
 		this.qty = qty;
@@ -47,7 +51,7 @@ public class FindRequest {
 	}
 
 	public List<Result> getResults() {
-		if(qty!=0){
+		if (qty != 0) {
 			System.out.println("no deberia pasar, qty!=0");
 		}
 		return results;
@@ -60,6 +64,23 @@ public class FindRequest {
 
 	public void addResult(Result result) {
 		this.results.add(result);
+	}
+
+	public boolean finishedOk() {
+		return finishedOk;
+	}
+
+	public void abort() {
+		semaphore.release(qty);
+		finishedOk = false;
+	}
+
+	public boolean finishedDistributing(int qty) {
+		return finishedDistributing.size() == qty;
+	}
+	
+	public void restart(){
+		
 	}
 
 }

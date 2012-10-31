@@ -2,6 +2,8 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jgroups.Address;
@@ -27,6 +29,7 @@ public class NotificationsAnalyzer extends Thread {
 	private final Multimap<Address, Signal> sendChangeWhoBackup;
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final BlockingQueue<Signal> signals;
+	private final ConcurrentMap<Address, Semaphore> tasksDone;
 
 	public NotificationsAnalyzer(BlockingQueue<Signal> signals,
 			BlockingQueue<SignalMessage> notifications,
@@ -35,7 +38,8 @@ public class NotificationsAnalyzer extends Thread {
 			Multimap<Address, Signal> mySignalsBackup,
 			Multimap<Address, Backup> sendBackups,
 			ConcurrentMap<Integer, FindRequest> requests,
-			Multimap<Address, Signal> sendChangeWhoBackup, Connection connection) {
+			Multimap<Address, Signal> sendChangeWhoBackup,
+			ConcurrentMap<Address, Semaphore> tasksDone, Connection connection) {
 		this.signals = signals;
 		this.notifications = notifications;
 		this.sendSignals = sendSignals;
@@ -45,6 +49,7 @@ public class NotificationsAnalyzer extends Thread {
 		this.sendBackups = sendBackups;
 		this.requests = requests;
 		this.connection = connection;
+		this.tasksDone = tasksDone;
 	}
 
 	public void finish() {
@@ -55,7 +60,7 @@ public class NotificationsAnalyzer extends Thread {
 	public void run() {
 		while (!finishedAnalyzer.get()) {
 			try {
-				SignalMessage notification;
+				final SignalMessage notification;
 				notification = notifications.take();
 				switch (notification.getType()) {
 				case SignalMessageType.REQUEST_NOTIFICATION:
@@ -71,19 +76,19 @@ public class NotificationsAnalyzer extends Thread {
 						System.out.println("esto no deberia pasar "
 								+ SignalMessageType.ADD_SIGNAL_ACK);
 					}
-					processor.distributeBackup(notification.getAddress(),
+					processor.distributeBackup(notification.getAddress(), null,
 							notification.getSignal());
 					break;
 				case SignalMessageType.ADD_SIGNALS_ACK:
-//					synchronized (sendSignals) {
-						if (!sendSignals.get(notification.getAddress())
-								.removeAll(notification.getSignals())) {
-							System.out.println("esto no deberia pasar "
-									+ SignalMessageType.ADD_SIGNALS_ACK);
-							System.out.println("de donde vino: "
-									+ notification.getAddress());
-						}
-//					}
+					// synchronized (sendSignals) {
+					if (!sendSignals.get(notification.getAddress()).removeAll(
+							notification.getSignals())) {
+						System.out.println("esto no deberia pasar "
+								+ SignalMessageType.ADD_SIGNALS_ACK);
+						System.out.println("de donde vino: "
+								+ notification.getAddress());
+					}
+					// }
 					// Tell everyone that some backup owners have changed
 					Address signalOwner = notification.getAddress();
 					connection.broadcastMessage(new SignalMessage(signalOwner,
@@ -91,20 +96,19 @@ public class NotificationsAnalyzer extends Thread {
 							SignalMessageType.CHANGE_BACK_UP_OWNER));
 					break;
 				case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
-//					synchronized (sendSignals) {
-						for (Signal s : notification.getSignals()) {
-							if (!sendSignals.remove(notification.getAddress(),
-									s)) {
-								System.out
-										.println("esto no deberia pasar "
-												+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
-								System.out.println("de donde vino: "
-										+ notification.getAddress());
-							}
-							processor.distributeBackup(
-									notification.getAddress(), s);
+					// synchronized (sendSignals) {
+					for (Signal s : notification.getSignals()) {
+						if (!sendSignals.remove(notification.getAddress(), s)) {
+							System.out
+									.println("esto no deberia pasar "
+											+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
+							System.out.println("de donde vino: "
+									+ notification.getAddress());
 						}
-//					}
+						processor.distributeBackup(notification.getAddress(),
+								notification.getOtherAddress(), s);
+					}
+					// }
 					break;
 				case SignalMessageType.ADD_BACKUP_ACK:
 					if (!sendBackups.remove(notification.getAddress(),
@@ -116,23 +120,27 @@ public class NotificationsAnalyzer extends Thread {
 					signalOwner = notification.getBackup().getAddress();
 					// If I am the owner of the signal...
 					if (connection.getMyAddress().equals(signalOwner)) {
-						System.out.println("1 - Agrego  a mySignalsBackup en ADD_BACKUP_ACK");
 						mySignalsBackup.put(notification.getAddress(),
 								notification.getBackup().getSignal());
-					} else {
-						System.out.println("entra aca de: "+notification.getAddress());
-						System.out.println("3- sending to: "+signalOwner);
-						if(notification.getSignal()==null){
-							System.out.println("es null");
+						if (notification.getOtherAddress() != null) {
+							Semaphore sem = tasksDone.get(notification
+									.getOtherAddress());
+							if (sem != null) {
+								sem.release();
+							}
 						}
-						if(!this.sendChangeWhoBackup.put(signalOwner, notification.getBackup().getSignal())){
-							System.out.println("no deberia pasar ADD_BACKUP_ACK, put false ");
+					} else {
+						if (!this.sendChangeWhoBackup.put(signalOwner,
+								notification.getBackup().getSignal())) {
+							System.out
+									.println("no deberia pasar ADD_BACKUP_ACK, put false ");
 						}
 						connection
 								.sendMessageTo(
 										signalOwner,
 										new SignalMessage(
 												notification.getAddress(),
+												notification.getOtherAddress(),
 												notification.getBackup()
 														.getSignal(),
 												SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
@@ -145,18 +153,27 @@ public class NotificationsAnalyzer extends Thread {
 									+ SignalMessageType.ADD_BACKUPS_ACK);
 						}
 						if (signals.contains(b.getSignal())) {
-							//to myself
+							// to myself
 							processor.changeWhoBackupMySignal(null,
-									notification.getAddress(), b.getSignal(),
-									true);
+									notification.getAddress(), null,
+									b.getSignal(), true);
+							if (notification.getOtherAddress() != null) {
+								Semaphore sem = tasksDone.get(notification
+										.getOtherAddress());
+								if (sem != null) {
+									sem.release();
+								}
+							}
 						} else {
-							System.out.println("2- sending to: "+b.getAddress());
-							sendChangeWhoBackup.put(b.getAddress(), b.getSignal());
+							sendChangeWhoBackup.put(b.getAddress(),
+									b.getSignal());
 							connection
 									.sendMessageTo(
 											b.getAddress(),
 											new SignalMessage(
 													notification.getAddress(),
+													notification
+															.getOtherAddress(),
 													b.getSignal(),
 													SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 						}
@@ -170,8 +187,13 @@ public class NotificationsAnalyzer extends Thread {
 										+ SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL_ACK);
 						System.out.println("de donde vino: "
 								+ notification.getAddress());
-					}else{
-						System.out.println("elimino del sendChange:"+notification.getAddress());
+					}
+					if (notification.getOtherAddress() != null) {
+						Semaphore sem = tasksDone.get(notification
+								.getOtherAddress());
+						if (sem != null) {
+							sem.release();
+						}
 					}
 					break;
 
@@ -179,9 +201,44 @@ public class NotificationsAnalyzer extends Thread {
 					processor.distributeSignals(notification.getAddress());
 					break;
 				case SignalMessageType.BYE_NODE:
-					processor.distributeNewSignalsFromBackups(notification
-							.getAddress());
-					processor.distributeLostBackups(notification.getAddress());
+					// if (processor.isFinding()) {
+					// FindRequest pendingRequest = requests.get(processor
+					// .getReceivedSignals());
+					// pendingRequest.abort();
+					// }
+					new Thread() {
+						public void run() {
+							try {
+								Address fallenNodeAddress = notification
+										.getAddress();
+								int tasks = processor
+										.distributeNewSignalsFromBackups(notification
+												.getAddress());
+								Semaphore sem = tasksDone
+										.get(fallenNodeAddress);
+								while (!sem.tryAcquire(tasks, 1,
+										TimeUnit.SECONDS)) {
+									System.out.println("en el 1er while "
+											+ sem.availablePermits());
+								}
+								System.out.println("termina new");
+								tasks = processor
+										.distributeLostBackups(notification
+												.getAddress());
+								sem = tasksDone.get(fallenNodeAddress);
+								while (!sem.tryAcquire(tasks, 1,
+										TimeUnit.SECONDS)) {
+									System.out.println("en el 2do while "
+											+ sem.availablePermits());
+								}
+								System.out.println("termina lost");
+								tasksDone.remove(fallenNodeAddress);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+						}
+					}.start();
+
 					break;
 				}
 			} catch (InterruptedException e) {

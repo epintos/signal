@@ -10,8 +10,9 @@ import ar.edu.itba.pod.api.Signal;
 
 /**
  * Class for sending either backups, signals, ids, etc. between nodes.
+ * 
  * @author Esteban G. Pintos
- *
+ * 
  */
 public class SignalMessage implements Serializable {
 
@@ -49,9 +50,25 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
+	public SignalMessage(Address address, Address otherAddress, Signal signal,
+			String type) {
+		this.signal = signal;
+		this.address = address;
+		this.type = type;
+		this.otherAddress = otherAddress;
+	}
+
 	public SignalMessage(Address address, String type, List<Backup> backupList) {
 		this.backupList = backupList;
 		this.address = address;
+		this.type = type;
+	}
+
+	public SignalMessage(Address address, Address otherAddress, String type,
+			List<Backup> backupList) {
+		this.backupList = backupList;
+		this.address = address;
+		this.otherAddress = otherAddress;
 		this.type = type;
 	}
 
@@ -66,6 +83,14 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
+	public SignalMessage(Address address, Address otherAddress, Backup backup,
+			String type) {
+		this.address = address;
+		this.backup = backup;
+		this.type = type;
+		this.otherAddress = otherAddress;
+	}
+
 	public SignalMessage(String type, List<Backup> backupList) {
 		this.backupList = backupList;
 		this.type = type;
@@ -77,7 +102,7 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 		this.requestId = id;
 	}
-	
+
 	public SignalMessage(Address address, Result result, int id, String type) {
 		this.result = result;
 		this.address = address;
@@ -90,13 +115,14 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
-	public SignalMessage(Address address, Address otherAddress, List<Signal> signals, String type) {
+	public SignalMessage(Address address, Address otherAddress,
+			List<Signal> signals, String type) {
 		this.type = type;
 		this.signals = signals;
 		this.address = address;
 		this.otherAddress = otherAddress;
 	}
-	
+
 	public SignalMessage(Address address, List<Signal> signals, String type) {
 		this.type = type;
 		this.signals = signals;
@@ -134,7 +160,7 @@ public class SignalMessage implements Serializable {
 	public List<Backup> getBackupList() {
 		return backupList;
 	}
-	
+
 	public Address getOtherAddress() {
 		return otherAddress;
 	}

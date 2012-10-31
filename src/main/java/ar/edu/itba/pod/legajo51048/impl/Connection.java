@@ -98,18 +98,21 @@ public class Connection extends ReceiverAdapter {
 			processor.addSignal(msg.getSrc(), message.getSignal());
 			break;
 		case SignalMessageType.YOUR_SIGNALS:
-			processor.addSignals(msg.getSrc(), message.getSignals(),
+			processor.addSignals(msg.getSrc(), null, message.getSignals(),
 					SignalMessageType.YOUR_SIGNALS);
 			break;
 		case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP:
-			processor.addSignals(msg.getSrc(), message.getSignals(),
+			processor.addSignals(msg.getSrc(), message.getOtherAddress(),
+					message.getSignals(),
 					SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP);
 			break;
 		case SignalMessageType.BACK_UP:
-			processor.addBackup(msg.getSrc(), message.getBackup());
+			processor.addBackup(msg.getSrc(), message.getOtherAddress(),
+					message.getBackup());
 			break;
 		case SignalMessageType.BACK_UPS:
-			processor.addBackups(msg.getSrc(), message.getBackupList());
+			processor.addBackups(msg.getSrc(), message.getOtherAddress(),
+					message.getBackupList());
 			break;
 		case SignalMessageType.CHANGE_BACK_UP_OWNER:
 			if (!myAddress.equals(message.getAddress())) {
@@ -123,19 +126,22 @@ public class Connection extends ReceiverAdapter {
 						message.getRequestId());
 			}
 			break;
-		case SignalMessageType.BYE_NODE:
-			processor.removeBackups(msg.getSrc());
-			break;
 		case SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL:
-			System.out.println("change who connection desde "+msg.getSrc());
 			processor.changeWhoBackupMySignal(msg.getSrc(),
-					message.getAddress(), message.getSignal(), false);
+					message.getAddress(), message.getOtherAddress(),
+					message.getSignal(), false);
 			break;
 		case SignalMessageType.IM_READY:
 			if (!message.getAddress().equals(getMyAddress())) {
 				processor.addNotification(new SignalMessage(message
 						.getAddress(), SignalMessageType.NEW_NODE));
 			}
+			break;
+		case SignalMessageType.FINISHED_REDISTRIBUTION:
+			// if (!message.getAddress().equals(getMyAddress())) {
+			processor.addNotification(new SignalMessage(message.getAddress(),
+					SignalMessageType.FINISHED_REDISTRIBUTION));
+			// }
 			break;
 
 		/** For notifications **/

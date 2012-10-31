@@ -18,6 +18,7 @@ public interface SignalMessageType {
 	public static final String GENERATE_NEW_SIGNALS_FROM_BACKUP = "GENERATE_NEW_SIGNALS_FROM_BACKUP";
 	public static final String CHANGE_WHO_BACK_UP_MYSIGNAL = "CHANGE_WHO_BACK_UP_MYSIGNAL";
 	public static final String IM_READY = "IM_READY";
+	public static final String FINISHED_REDISTRIBUTION = "FINISHED_REDISTRIBUTION";
 
 	/** For node notifications **/
 	public static final String REQUEST_NOTIFICATION = "REQUEST_NOTIFICATION";
