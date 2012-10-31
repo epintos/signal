@@ -127,8 +127,9 @@ public class Connection extends ReceiverAdapter {
 			processor.removeBackups(msg.getSrc());
 			break;
 		case SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL:
-			processor.changeWhoBackupMySignal(message.getAddress(),
-					message.getSignal(), false);
+			System.out.println("change who connection desde "+msg.getSrc());
+			processor.changeWhoBackupMySignal(msg.getSrc(),
+					message.getAddress(), message.getSignal(), false);
 			break;
 		case SignalMessageType.IM_READY:
 			if (!message.getAddress().equals(getMyAddress())) {

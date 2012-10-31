@@ -24,6 +24,7 @@ public class NotificationsAnalyzer extends Thread {
 	private Connection connection;
 	private final Multimap<Address, Signal> mySignalsBackup;
 	private final Multimap<Address, Backup> sendBackups;
+	private final Multimap<Address, Signal> sendChangeWhoBackup;
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final BlockingQueue<Signal> signals;
 
@@ -33,10 +34,12 @@ public class NotificationsAnalyzer extends Thread {
 			MultithreadedSignalProcessor processor,
 			Multimap<Address, Signal> mySignalsBackup,
 			Multimap<Address, Backup> sendBackups,
-			ConcurrentMap<Integer, FindRequest> requests, Connection connection) {
+			ConcurrentMap<Integer, FindRequest> requests,
+			Multimap<Address, Signal> sendChangeWhoBackup, Connection connection) {
 		this.signals = signals;
 		this.notifications = notifications;
 		this.sendSignals = sendSignals;
+		this.sendChangeWhoBackup = sendChangeWhoBackup;
 		this.processor = processor;
 		this.mySignalsBackup = mySignalsBackup;
 		this.sendBackups = sendBackups;
@@ -72,7 +75,7 @@ public class NotificationsAnalyzer extends Thread {
 							notification.getSignal());
 					break;
 				case SignalMessageType.ADD_SIGNALS_ACK:
-					synchronized (sendSignals) {
+//					synchronized (sendSignals) {
 						if (!sendSignals.get(notification.getAddress())
 								.removeAll(notification.getSignals())) {
 							System.out.println("esto no deberia pasar "
@@ -80,7 +83,7 @@ public class NotificationsAnalyzer extends Thread {
 							System.out.println("de donde vino: "
 									+ notification.getAddress());
 						}
-					}
+//					}
 					// Tell everyone that some backup owners have changed
 					Address signalOwner = notification.getAddress();
 					connection.broadcastMessage(new SignalMessage(signalOwner,
@@ -88,7 +91,7 @@ public class NotificationsAnalyzer extends Thread {
 							SignalMessageType.CHANGE_BACK_UP_OWNER));
 					break;
 				case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
-					synchronized (sendSignals) {
+//					synchronized (sendSignals) {
 						for (Signal s : notification.getSignals()) {
 							if (!sendSignals.remove(notification.getAddress(),
 									s)) {
@@ -101,7 +104,7 @@ public class NotificationsAnalyzer extends Thread {
 							processor.distributeBackup(
 									notification.getAddress(), s);
 						}
-					}
+//					}
 					break;
 				case SignalMessageType.ADD_BACKUP_ACK:
 					if (!sendBackups.remove(notification.getAddress(),
@@ -113,9 +116,18 @@ public class NotificationsAnalyzer extends Thread {
 					signalOwner = notification.getBackup().getAddress();
 					// If I am the owner of the signal...
 					if (connection.getMyAddress().equals(signalOwner)) {
+						System.out.println("1 - Agrego  a mySignalsBackup en ADD_BACKUP_ACK");
 						mySignalsBackup.put(notification.getAddress(),
 								notification.getBackup().getSignal());
 					} else {
+						System.out.println("entra aca de: "+notification.getAddress());
+						System.out.println("3- sending to: "+signalOwner);
+						if(notification.getSignal()==null){
+							System.out.println("es null");
+						}
+						if(!this.sendChangeWhoBackup.put(signalOwner, notification.getBackup().getSignal())){
+							System.out.println("no deberia pasar ADD_BACKUP_ACK, put false ");
+						}
 						connection
 								.sendMessageTo(
 										signalOwner,
@@ -133,12 +145,13 @@ public class NotificationsAnalyzer extends Thread {
 									+ SignalMessageType.ADD_BACKUPS_ACK);
 						}
 						if (signals.contains(b.getSignal())) {
-							// mySignalsBackup.put(notification.getAddress(),
-							// b.getSignal());
-							processor.changeWhoBackupMySignal(
+							//to myself
+							processor.changeWhoBackupMySignal(null,
 									notification.getAddress(), b.getSignal(),
 									true);
 						} else {
+							System.out.println("2- sending to: "+b.getAddress());
+							sendChangeWhoBackup.put(b.getAddress(), b.getSignal());
 							connection
 									.sendMessageTo(
 											b.getAddress(),
@@ -147,6 +160,18 @@ public class NotificationsAnalyzer extends Thread {
 													b.getSignal(),
 													SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
 						}
+					}
+					break;
+				case SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL_ACK:
+					if (!sendChangeWhoBackup.remove(notification.getAddress(),
+							notification.getSignal())) {
+						System.out
+								.println("no deberia pasar "
+										+ SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL_ACK);
+						System.out.println("de donde vino: "
+								+ notification.getAddress());
+					}else{
+						System.out.println("elimino del sendChange:"+notification.getAddress());
 					}
 					break;
 

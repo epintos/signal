@@ -31,5 +31,6 @@ public interface SignalMessageType {
 	public static final String GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK = "GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK";
 	public static final String BACKUP_REDISTRIBUTION_NACK = "BACKUP_REDISTRIBUTION_NACK";
 	public static final String NEW_NODE = "NEW_NODE";
+	public static final String CHANGE_WHO_BACK_UP_MYSIGNAL_ACK = "CHANGE_WHO_BACK_UP_MYSIGNAL_ACK";
 
 }

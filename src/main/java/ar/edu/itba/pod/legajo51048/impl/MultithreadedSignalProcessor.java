@@ -2,7 +2,6 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.rmi.RemoteException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
@@ -55,6 +54,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	// Backups that have been distributed and it's waiting for ACK
 	private final Multimap<Address, Backup> sendBackups;
 
+	// Messages that have been send two change backups owners.
+	private final Multimap<Address, Signal> sendChangeWhoBackup;
+
 	// Queue of notifications to analyze
 	private final BlockingQueue<SignalMessage> notifications;
 
@@ -77,13 +79,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		ArrayListMultimap<Address, Backup> list2 = ArrayListMultimap.create();
 		ArrayListMultimap<Address, Signal> list3 = ArrayListMultimap.create();
 		ArrayListMultimap<Address, Signal> list4 = ArrayListMultimap.create();
+		ArrayListMultimap<Address, Signal> list5 = ArrayListMultimap.create();
 		this.backups = Multimaps.synchronizedListMultimap(list);
 		this.sendBackups = Multimaps.synchronizedListMultimap(list2);
+		this.sendSignals = Multimaps.synchronizedListMultimap(list3);
 		this.mySignalsBackup = Multimaps.synchronizedListMultimap(list4);
+		this.sendChangeWhoBackup = Multimaps.synchronizedListMultimap(list5);
 		this.notifications = new LinkedBlockingQueue<SignalMessage>();
 		this.requests = new ConcurrentHashMap<Integer, FindRequest>();
 		this.signals = new LinkedBlockingQueue<Signal>();
-		this.sendSignals = Multimaps.synchronizedListMultimap(list3);
 		this.executor = Executors.newFixedThreadPool(threadsQty);
 		this.threadsQty = threadsQty;
 	}
@@ -109,7 +113,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private void startNotificationsAnalyzer() {
 		this.notificationsAnalyzer = new NotificationsAnalyzer(signals,
 				notifications, sendSignals, this, mySignalsBackup, sendBackups,
-				requests, connection);
+				requests, sendChangeWhoBackup, connection);
 		this.notificationsAnalyzer.start();
 	}
 
@@ -194,10 +198,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				this.signals.add(signal);
 				distributeBackup(myAddress, signal);
 			} else {
+				this.sendSignals.put(futureOwner, signal);
 				connection.sendMessageTo(futureOwner, new SignalMessage(
 						connection.getMyAddress(), signal,
 						SignalMessageType.YOUR_SIGNAL));
-				this.sendSignals.put(futureOwner, signal);
 			}
 		} else {
 			this.signals.add(signal);
@@ -257,7 +261,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 		BlockingQueue<Signal> newSignals = new LinkedBlockingQueue<Signal>(
 				backups.get(address));
-		System.out.println("tamaño posta: " + newSignals.size());
+		// System.out.println("tamaño posta: " + newSignals.size());
 		if (newSignals.isEmpty()) {
 			return;
 		}
@@ -295,8 +299,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				if (i == cicles - 1) {
 					sizeToDistribute = newSignals.size();
 				}
-				System.out.println("sacado: "
-						+ newSignals.drainTo(auxList, sizeToDistribute));
+				newSignals.drainTo(auxList, sizeToDistribute);
 				if (!futureOwner.equals(myAddress)) {
 					if (isBackup) {
 						List<Backup> backupList = new ArrayList<Backup>();
@@ -306,29 +309,35 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 							backupList.add(new Backup(
 									connection.getMyAddress(), s));
 						}
-						connection
-								.sendMessageTo(futureOwner, new SignalMessage(
-										connection.getMyAddress(),
-										SignalMessageType.BACK_UPS, backupList));
-						this.sendBackups.putAll(futureOwner, backupList);
+						if (!backupList.isEmpty()) {
+							this.sendBackups.putAll(futureOwner, backupList);
+							connection.sendMessageTo(futureOwner,
+									new SignalMessage(
+											connection.getMyAddress(),
+											SignalMessageType.BACK_UPS,
+											backupList));
+						}
 					} else {
-						connection
-								.sendMessageTo(
-										futureOwner,
-										new SignalMessage(
-												connection.getMyAddress(),
-												auxList,
-												SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP));
-						this.sendSignals.putAll(futureOwner, auxList);
+						if (!auxList.isEmpty()) {
+							this.sendSignals.putAll(futureOwner, auxList);
+							connection
+									.sendMessageTo(
+											futureOwner,
+											new SignalMessage(
+													connection.getMyAddress(),
+													auxList,
+													SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP));
+						}
 					}
 				} else {
 					if (isBackup) {
 						// Won't happen if there were 2 members or more
 						System.out.println("no deberia pasar");
 					} else {
+						System.out.println("agrego a mi");
 						this.signals.addAll(auxList);
 						for (Signal signal : auxList) {
-							distributeBackup(myAddress, signal);
+							distributeBackup(connection.getMyAddress(), signal);
 						}
 					}
 
@@ -343,15 +352,14 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				if (connection != null) {
 					this.backups.removeAll(address);
 					this.backups.putAll(connection.getMyAddress(), newSignals);
-					// changeBackupOwner(connection.getMyAddress(),
-					// new ArrayList<Signal>(newSignals));
-					// backups.putAll(connection.getMyAddress(), newSignals);
 				}
 				backups.putAll(connection.getMyAddress(),
 						this.mySignalsBackup.get(address));
 				this.mySignalsBackup.clear();
 				this.mySignalsBackup.putAll(connection.getMyAddress(),
 						this.signals);
+
+				// HERE FINISHES
 			}
 		}
 	}
@@ -383,6 +391,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			Address futureBackupOwner = users.get(random);
 			if (connection.getMyAddress().equals(futureBackupOwner)) {
 				this.backups.put(signalOwner, signal);
+				System.out.println("sending changeWho to: " + signalOwner);
+				if (!sendChangeWhoBackup.put(signalOwner, signal)) {
+					System.out.println("no deberia pasar, put al sendChange");
+				} else {
+					System.out.println("agregando al sendChange 1");
+				}
 				connection.sendMessageTo(signalOwner, new SignalMessage(
 						connection.getMyAddress(), signal,
 						SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
@@ -390,10 +404,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				if (backup == null) {
 					backup = new Backup(signalOwner, signal);
 				}
+				sendBackups.put(futureBackupOwner, backup);
 				connection.sendMessageTo(futureBackupOwner, new SignalMessage(
 						connection.getMyAddress(), backup,
 						SignalMessageType.BACK_UP));
-				sendBackups.put(futureBackupOwner, backup);
 			}
 		} else {
 			if (connection != null) {
@@ -430,10 +444,17 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			List<Signal> distSignals = new ArrayList<Signal>();
 			// Sublist of first sizeToDistribute (if available) signals
 			signalsQueue.drainTo(distSignals, sizeToDistribute);
-			connection.sendMessageTo(to,
-					new SignalMessage(connection.getMyAddress(), distSignals,
-							SignalMessageType.YOUR_SIGNALS));
-			sendSignals.putAll(to, distSignals);
+
+			// If theres nothing to send
+			if (!distSignals.isEmpty()) {
+				if (!this.sendSignals.putAll(to, distSignals)) {
+					System.out
+							.println("no deberia pasar agregando a sendSignals");
+				}
+				connection.sendMessageTo(to,
+						new SignalMessage(connection.getMyAddress(),
+								distSignals, SignalMessageType.YOUR_SIGNALS));
+			}
 
 			// There was only 1 node, so backup must be distributed
 			if (membersQty == 2) {
@@ -469,6 +490,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				System.out.println("no deberia pasar putAll");
 			}
 			for (Signal signal : signals) {
+				if (!sendChangeWhoBackup.put(newOwner, signal)) {
+					System.out.println("no deberia pasar, put al sendChange 2");
+				} else {
+					System.out.println("agregando al sendChange 2");
+				}
 				connection.sendMessageTo(newOwner,
 						new SignalMessage(connection.getMyAddress(), signal,
 								SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
@@ -501,8 +527,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            New owner of the backup
 	 * @param signal
 	 */
-	protected void changeWhoBackupMySignal(Address address, Signal signal,
-			boolean remove) {
+	protected void changeWhoBackupMySignal(Address from, Address address,
+			Signal signal, boolean remove) {
 		// List<Signal> list = new ArrayList<Signal>();
 		// list.add(signal);
 		// changeBackupOwner(address, list, this.mySignalsBackup, false, true);
@@ -511,6 +537,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			this.mySignalsBackup.get(connection.getMyAddress()).remove(signal);
 		}
 		this.mySignalsBackup.put(address, signal);
+		if (from != null) {
+			connection.sendMessageTo(from,
+					new SignalMessage(connection.getMyAddress(), signal,
+							SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL_ACK));
+		}else{
+			System.out.println("from es null");
+			
+		}
+
 	}
 
 	/**
@@ -557,11 +592,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	// // Tell the new owner of the node who has his backups
 	// connection.sendMessageTo(newOwner, new SignalMessage(
 	// connection.getMyAddress(), signal,
-	// SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
+	// SignalMessageType.));
 	// // Tell the old owner of the signals who has his backups
 	// // connection.sendMessageTo(oldOwner, new SignalMessage(
 	// // connection.getMyAddress(), signal,
-	// // SignalMessageType.CHANGE_WHO_BACK_UP_MYSIGNAL));
+	// // SignalMessageType.));
 	// }
 	// backupMap.remove(oldOwner, signal);
 	// }
@@ -634,6 +669,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param backup
 	 */
 	protected void addBackup(Address from, Backup backup) {
+		if(backup.getSignal()==null){
+			System.out.println("backup señal es null");
+		}
 		this.backups.put(backup.getAddress(), backup.getSignal());
 		connection.sendMessageTo(from,
 				new SignalMessage(connection.getMyAddress(), backup,
@@ -678,14 +716,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			// I don't have to send the request to me
 			Address myAddress = connection.getMyAddress();
 			addresses.remove(myAddress);
-			
+
 			Semaphore semaphore = new Semaphore(0);
 			this.requests.put(requestId,
 					new FindRequest(addresses, addresses.size(), semaphore));
 			connection.broadcastMessage(new SignalMessage(signal, requestId,
 					SignalMessageType.FIND_SIMILAR));
 			try {
-				while(!semaphore.tryAcquire(addresses.size(),1000,TimeUnit.MICROSECONDS)){
+				while (!semaphore.tryAcquire(addresses.size(), 1000,
+						TimeUnit.MICROSECONDS)) {
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
@@ -693,10 +732,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		}
 		Result result = findSimilarToAux(signal);
 		FindRequest request = this.requests.get(requestId);
-		List<Result> results = request.getResults();
-		for (Result otherResult : results) {
-			for (Item item : otherResult.items()) {
-				result = result.include(item);
+		if (request != null) {
+			List<Result> results = request.getResults();
+			for (Result otherResult : results) {
+				for (Item item : otherResult.items()) {
+					result = result.include(item);
+				}
 			}
 		}
 		return result;
