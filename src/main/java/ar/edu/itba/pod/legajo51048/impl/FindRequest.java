@@ -3,10 +3,12 @@ package ar.edu.itba.pod.legajo51048.impl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Result;
+import ar.edu.itba.pod.api.Signal;
 
 /**
  * Class containing a request for finding similar signals.
@@ -20,20 +22,24 @@ public class FindRequest {
 	private List<Address> addresses;
 
 	// Quantity of nodes in the request
-	private int qty;
+	private AtomicInteger qty;
 
 	private Semaphore semaphore;
 
 	// Results of the request
 	private List<Result> results;
 
-	private boolean finishedOk = true;
+	private Signal signal;
+	private int requestId;
 
-	private List<Address> finishedDistributing = new ArrayList<Address>();
-
-	public FindRequest(List<Address> addresses, int qty, Semaphore semaphore) {
+	public FindRequest(int requestId, Signal signal, List<Address> addresses,
+			Semaphore semaphore) {
 		this.addresses = addresses;
-		this.qty = qty;
+		
+		// Remove the principal node
+		this.qty = new AtomicInteger(addresses.size() - 1);
+		this.requestId = requestId;
+		this.signal = signal;
 		this.semaphore = semaphore;
 		this.results = new ArrayList<Result>();
 	}
@@ -46,41 +52,38 @@ public class FindRequest {
 		return semaphore;
 	}
 
-	public int getQty() {
-		return qty;
-	}
-
 	public List<Result> getResults() {
-		if (qty != 0) {
+		if (qty.get() != 0) {
 			System.out.println("no deberia pasar, qty!=0");
 		}
 		return results;
 	}
 
-	public void removeAddress(Address address) {
-		this.results.remove(address);
-		qty--;
+	public int getQty() {
+		return qty.get();
 	}
 
-	public void addResult(Result result) {
+	public void addResult(Result result, Address address) {
 		this.results.add(result);
+		this.addresses.remove(address);
+		this.qty.decrementAndGet();
+		this.semaphore.release();
+		System.out.println("agrego resultado de " + address);
 	}
 
-	public boolean finishedOk() {
-		return finishedOk;
+	public void restart(List<Address> newAddresses) {
+		this.semaphore.drainPermits();
+		this.results.clear();
+		this.addresses = newAddresses;
+		this.qty.set(addresses.size() - 1);
 	}
 
-	public void abort() {
-		semaphore.release(qty);
-		finishedOk = false;
+	public Signal getSignal() {
+		return signal;
 	}
 
-	public boolean finishedDistributing(int qty) {
-		return finishedDistributing.size() == qty;
-	}
-	
-	public void restart(){
-		
+	public int getRequestId() {
+		return requestId;
 	}
 
 }

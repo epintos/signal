@@ -138,11 +138,20 @@ public class Connection extends ReceiverAdapter {
 			}
 			break;
 		case SignalMessageType.FINISHED_REDISTRIBUTION:
-			// if (!message.getAddress().equals(getMyAddress())) {
-			processor.addNotification(new SignalMessage(message.getAddress(),
-					SignalMessageType.FINISHED_REDISTRIBUTION));
-			// }
+			if (!msg.getSrc().equals(getMyAddress())) {
+				processor.addNotification(new SignalMessage(message
+						.getAddress(),message.getOtherAddress(),
+						SignalMessageType.FINISHED_REDISTRIBUTION));
+			}
 			break;
+		// case SignalMessageType.STOP_FINDING_SIMILARS:
+		// if (!message.getAddress().equals(getMyAddress())) {
+		// processor
+		// .addNotification(new SignalMessage(
+		// message.getAddress(),
+		// SignalMessageType.STOP_FINDING_SIMILARS));
+		// }
+		// break;
 
 		/** For notifications **/
 		default:

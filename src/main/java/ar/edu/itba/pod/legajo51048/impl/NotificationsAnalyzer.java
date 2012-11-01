@@ -1,6 +1,9 @@
 package ar.edu.itba.pod.legajo51048.impl;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +33,7 @@ public class NotificationsAnalyzer extends Thread {
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final BlockingQueue<Signal> signals;
 	private final ConcurrentMap<Address, Semaphore> tasksDone;
+	private final ConcurrentMap<Address, Semaphore> semaphores;
 
 	public NotificationsAnalyzer(BlockingQueue<Signal> signals,
 			BlockingQueue<SignalMessage> notifications,
@@ -50,6 +54,7 @@ public class NotificationsAnalyzer extends Thread {
 		this.requests = requests;
 		this.connection = connection;
 		this.tasksDone = tasksDone;
+		this.semaphores = new ConcurrentHashMap<Address, Semaphore>();
 	}
 
 	public void finish() {
@@ -58,6 +63,7 @@ public class NotificationsAnalyzer extends Thread {
 
 	@Override
 	public void run() {
+
 		while (!finishedAnalyzer.get()) {
 			try {
 				final SignalMessage notification;
@@ -66,9 +72,8 @@ public class NotificationsAnalyzer extends Thread {
 				case SignalMessageType.REQUEST_NOTIFICATION:
 					FindRequest request = requests.get(notification
 							.getRequestId());
-					request.removeAddress(notification.getAddress());
-					request.addResult(notification.getResult());
-					request.getSemaphore().release();
+					request.addResult(notification.getResult(),
+							notification.getAddress());
 					break;
 				case SignalMessageType.ADD_SIGNAL_ACK:
 					if (!sendSignals.remove(notification.getAddress(),
@@ -196,16 +201,21 @@ public class NotificationsAnalyzer extends Thread {
 						}
 					}
 					break;
-
+				case SignalMessageType.FINISHED_REDISTRIBUTION:
+					Semaphore semaphore = semaphores.get(notification
+							.getOtherAddress());
+					if (semaphore == null) {
+						semaphore = new Semaphore(0);
+						semaphores.put(notification.getOtherAddress(),
+								semaphore);
+					}
+					semaphore.release();
+					break;
 				case SignalMessageType.NEW_NODE:
 					processor.distributeSignals(notification.getAddress());
 					break;
 				case SignalMessageType.BYE_NODE:
-					// if (processor.isFinding()) {
-					// FindRequest pendingRequest = requests.get(processor
-					// .getReceivedSignals());
-					// pendingRequest.abort();
-					// }
+
 					new Thread() {
 						public void run() {
 							try {
@@ -221,7 +231,6 @@ public class NotificationsAnalyzer extends Thread {
 									System.out.println("en el 1er while "
 											+ sem.availablePermits());
 								}
-								System.out.println("termina new");
 								tasks = processor
 										.distributeLostBackups(notification
 												.getAddress());
@@ -231,8 +240,55 @@ public class NotificationsAnalyzer extends Thread {
 									System.out.println("en el 2do while "
 											+ sem.availablePermits());
 								}
-								System.out.println("termina lost");
 								tasksDone.remove(fallenNodeAddress);
+								System.out.println("finished distributing");
+								connection
+										.broadcastMessage(new SignalMessage(
+												connection.getMyAddress(),
+												fallenNodeAddress,
+												SignalMessageType.FINISHED_REDISTRIBUTION));
+
+								// Wait for all the nodes to distribute
+								try {
+									Semaphore semaphore = semaphores
+											.get(fallenNodeAddress);
+									if (semaphore == null) {
+										semaphore = new Semaphore(0);
+										semaphores.put(fallenNodeAddress,
+												semaphore);
+									}
+									while (!semaphore.tryAcquire(
+											connection.getMembersQty() - 1,
+											1000, TimeUnit.MILLISECONDS)) {
+										System.out
+												.println("while de FINISHED_REDISTRIBUTION: "
+														+ semaphore
+																.availablePermits());
+									}
+								} catch (InterruptedException e) {
+									e.printStackTrace();
+								}
+								semaphores.remove(fallenNodeAddress);
+								System.out.println("finished recovery");
+
+								// Find find similar request that had the
+								// fallen
+								// node
+								for (FindRequest request : requests.values()) {
+									if (request.getAddresses().contains(
+											fallenNodeAddress)) {
+										List<Address> addresses = new ArrayList<Address>(
+												connection.getMembers());
+										request.restart(addresses);
+										connection
+												.broadcastMessage(new SignalMessage(
+														request.getSignal(),
+														request.getRequestId(),
+														SignalMessageType.FIND_SIMILAR));
+
+									}
+								}
+
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}

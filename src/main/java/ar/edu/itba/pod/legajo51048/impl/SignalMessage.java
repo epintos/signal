@@ -58,6 +58,12 @@ public class SignalMessage implements Serializable {
 		this.otherAddress = otherAddress;
 	}
 
+	public SignalMessage(Address address, Address otherAddress, String type) {
+		this.address = address;
+		this.type = type;
+		this.otherAddress = otherAddress;
+	}
+
 	public SignalMessage(Address address, String type, List<Backup> backupList) {
 		this.backupList = backupList;
 		this.address = address;

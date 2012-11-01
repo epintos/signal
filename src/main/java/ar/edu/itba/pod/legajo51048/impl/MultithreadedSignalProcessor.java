@@ -74,8 +74,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	// Quantity of received find similar requests.
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
 
-	private AtomicBoolean findingSimilars = new AtomicBoolean(false);
-
 	// Connection implementation to a cluster
 	private Connection connection = null;
 
@@ -230,8 +228,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		List<Address> members = null;
 		Semaphore sem = new Semaphore(0);
 		tasksDone.put(fallenNodeAddress, sem);
-		System.out.println("semaforo permits: "
-				+ tasksDone.get(fallenNodeAddress).availablePermits());
 		if (connection != null) {
 			members = connection.getMembers();
 			membersQty = members.size();
@@ -246,7 +242,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (membersQty != 1) {
 			int mod = 0;
 			int sizeToDistribute = 0;
-			System.out.println("isBackup");
 			mod = newSignals.size() % (membersQty - 1);
 			sizeToDistribute = mod == 0 ? newSignals.size() / (membersQty - 1)
 					: (newSignals.size() + mod) / (membersQty - 1);
@@ -278,7 +273,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					}
 					if (!backupList.isEmpty()) {
 						this.sendBackups.putAll(futureOwner, backupList);
-						if(fallenNodeAddress == null){
+						if (fallenNodeAddress == null) {
 							System.out.println("fallen es null 2");
 						}
 						connection
@@ -309,8 +304,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		List<Address> members = null;
 		Semaphore sem = new Semaphore(0);
 		tasksDone.put(fallenNodeAddress, sem);
-		System.out.println("semaforo put: "
-				+ tasksDone.get(fallenNodeAddress).availablePermits());
 		if (connection != null) {
 			members = connection.getMembers();
 			membersQty = members.size();
@@ -324,7 +317,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (membersQty != 1) {
 			int mod = 0;
 			int sizeToDistribute = 0;
-			System.out.println("!isBackup");
 			mod = newSignals.size() % membersQty;
 			sizeToDistribute = mod == 0 ? newSignals.size() / membersQty
 					: (newSignals.size() + mod) / membersQty;
@@ -360,7 +352,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					}
 				} else {
 					this.signals.addAll(auxList);
-					System.out.println("asigno a mi");
 					for (Signal signal : auxList) {
 						distributeBackup(connection.getMyAddress(),
 								fallenNodeAddress, signal);
@@ -859,45 +850,28 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			addresses = new ArrayList<Address>(connection.getMembers());
 		}
 		if (addresses != null && addresses.size() > 1) {
-			findingSimilars.set(true);
 			// I don't have to send the request to me
-			Address myAddress = connection.getMyAddress();
-			addresses.remove(myAddress);
 
 			Semaphore semaphore = new Semaphore(0);
-			this.requests.put(requestId,
-					new FindRequest(addresses, addresses.size(), semaphore));
+			FindRequest request = new FindRequest(requestId, signal, addresses,
+					semaphore);
+			this.requests.put(requestId, request);
 			connection.broadcastMessage(new SignalMessage(signal, requestId,
 					SignalMessageType.FIND_SIMILAR));
+
+			// This while will wait for Results and will not finish until ALL
+			// the results are found (includes 1-tolerance)
 			try {
-				while (!semaphore.tryAcquire(addresses.size(), 1000,
+				while (!semaphore.tryAcquire(request.getQty(), 10000,
 						TimeUnit.MILLISECONDS)) {
+					System.out.println("Esperando resultados: "
+							+ semaphore.availablePermits());
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			FindRequest request = this.requests.get(requestId);
-			if (!request.finishedOk()) {
-				while (request.finishedDistributing(addresses.size()))
-					;
-				// y yo no termine..
-				this.requests.remove(requestId);
-				// get new actual members
-				addresses = new ArrayList<Address>(connection.getMembers());
-				addresses.remove(myAddress);
-				this.requests.put(requestId, new FindRequest(addresses,
-						addresses.size(), semaphore));
-				try {
-					while (!semaphore.tryAcquire(addresses.size(), 1000,
-							TimeUnit.MILLISECONDS)) {
-					}
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				connection.broadcastMessage(new SignalMessage(signal,
-						requestId, SignalMessageType.FIND_SIMILAR));
-			}
-
+			System.out.println("llegaron los resultados memberQty: "
+					+ request.getQty());
 			result = findSimilarToAux(signal);
 			if (request != null) {
 				List<Result> results = request.getResults();
@@ -907,7 +881,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					}
 				}
 			}
-			findingSimilars.set(false);
 		} else {
 			result = findSimilarToAux(signal);
 		}
@@ -925,11 +898,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            Id of the request
 	 */
 	protected void findMySimilars(Address from, Signal signal, int id) {
-		Result result = findSimilarToAux(signal);
 		System.out.println(connection.getMyAddress() + " findingSimilars...");
+		Result result = findSimilarToAux(signal);
 		connection.sendMessageTo(from,
 				new SignalMessage(connection.getMyAddress(), result, id,
 						SignalMessageType.REQUEST_NOTIFICATION));
+		System.out.println(connection.getMyAddress()
+				+ "finishedFindingSimilars....");
 	}
 
 	/**
@@ -967,11 +942,4 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		return null;
 	}
 
-	protected boolean isFinding() {
-		return findingSimilars.get();
-	}
-
-	public int getReceivedSignals() {
-		return receivedSignals.get();
-	}
 }

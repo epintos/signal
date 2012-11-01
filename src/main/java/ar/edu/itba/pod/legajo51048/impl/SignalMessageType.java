@@ -2,8 +2,9 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 /**
  * Interface containing all kind of messages that can be sent between nodes.
+ * 
  * @author Esteban G. Pintos
- *
+ * 
  */
 public interface SignalMessageType {
 
