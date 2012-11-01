@@ -66,6 +66,8 @@ public class Client {
 					this.generate(sp, 60000);
 				} else if (line.equals("11")) {
 					this.generate(sp, 1000000);
+				} else if (line.equals("12")) {
+					this.generate(sp, 140000);
 				} else if (line.equals("0")) {
 					return;
 				} else {
@@ -100,6 +102,7 @@ public class Client {
 		System.out.println("9 - Add 30.000 signals");
 		System.out.println("10 - Add 60.000 signals");
 		System.out.println("11 - Add 1.000.000 signals");
+		System.out.println("12 - Add 140.000 signals");
 		System.out.println("0 - End");
 		System.out.print("> ");
 		System.out.flush();

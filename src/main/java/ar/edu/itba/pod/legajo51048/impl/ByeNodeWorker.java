@@ -66,10 +66,13 @@ public class ByeNodeWorker extends Thread {
 					SignalMessageType.FINISHED_REDISTRIBUTION));
 
 			// Wait for all the nodes to distribute
-			Semaphore semaphore = semaphores.get(fallenNodeAddress);
-			if (semaphore == null) {
-				semaphore = new Semaphore(0);
-				semaphores.put(fallenNodeAddress, semaphore);
+			Semaphore semaphore = null;
+			synchronized (semaphores) {
+				semaphore = semaphores.get(fallenNodeAddress);
+				if (semaphore == null) {
+					semaphore = new Semaphore(0);
+					semaphores.put(fallenNodeAddress, semaphore);
+				}
 			}
 			while (!semaphore.tryAcquire(connection.getMembersQty() - 1, 1000,
 					TimeUnit.MILLISECONDS)) {

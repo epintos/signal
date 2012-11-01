@@ -72,10 +72,14 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private final int threadsQty;
 
 	// Quantity of received find similar requests.
+	private AtomicInteger receivedFind = new AtomicInteger(0);
+	
 	private AtomicInteger receivedSignals = new AtomicInteger(0);
 
 	// Connection implementation to a cluster
 	private Connection connection = null;
+
+	private static final int CHUNK_SIZE = 300;
 
 	public MultithreadedSignalProcessor(int threadsQty) {
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
@@ -122,7 +126,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		sendSignals.clear();
 		sendChangeWhoBackup.clear();
 		requests.clear();
-		receivedSignals = new AtomicInteger(0);
+		receivedFind = new AtomicInteger(0);
 		if (connection != null) {
 			connection.disconnect();
 			connection = null;
@@ -162,7 +166,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				receivedSignals.longValue(), signals.size(), backups.size(),
 				true);
 	}
-
+	
 	/**
 	 * Create and start notifications analyzer thread.
 	 */
@@ -185,7 +189,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		if (signal == null) {
 			throw new IllegalArgumentException("Signal cannot be null");
 		}
-		int requestId = receivedSignals.incrementAndGet();
+		int requestId = receivedFind.incrementAndGet();
 		Result result = null;
 		List<Address> addresses = null;
 		if (connection != null) {
@@ -365,26 +369,33 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					;
 				Address futureOwner = members.get(random);
 				chosen.add(futureOwner);
-				List<Signal> auxList = new ArrayList<Signal>();
+
 				if (i == cicles - 1) {
 					sizeToDistribute = newSignals.size();
 				}
-				newSignals.drainTo(auxList, sizeToDistribute);
 				if (!futureOwner.equals(myAddress)) {
-					List<Backup> backupList = new ArrayList<Backup>();
-					// Distribute those backups that were mine and got lost with
-					// the fallen node
-					for (Signal s : auxList) {
-						backupList.add(new Backup(myAddress, s));
-					}
-					if (!backupList.isEmpty()) {
-						this.sendBackups.putAll(futureOwner, backupList);
-						connection
-								.sendMessageTo(futureOwner, new SignalMessage(
-										connection.getMyAddress(),
-										fallenNodeAddress,
-										SignalMessageType.BACK_UPS, backupList));
-						ret += backupList.size();
+					int chunks = sizeToDistribute / CHUNK_SIZE + 1;
+					for (int j = 0; j < chunks; j++) {
+						List<Signal> auxList = new ArrayList<Signal>();
+						newSignals.drainTo(auxList, CHUNK_SIZE);
+
+						List<Backup> backupList = new ArrayList<Backup>();
+						// Distribute those backups that were mine and got lost
+						// with
+						// the fallen node
+						for (Signal s : auxList) {
+							backupList.add(new Backup(myAddress, s));
+						}
+						if (!backupList.isEmpty()) {
+							this.sendBackups.putAll(futureOwner, backupList);
+							connection.sendMessageTo(futureOwner,
+									new SignalMessage(
+											connection.getMyAddress(),
+											fallenNodeAddress,
+											SignalMessageType.BACK_UPS,
+											backupList));
+							ret += backupList.size();
+						}
 					}
 				} else {
 					System.out.println("no deberia pasar");
@@ -412,8 +423,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			members = connection.getMembers();
 			membersQty = members.size();
 		}
-		BlockingQueue<Signal> newSignals = new LinkedBlockingQueue<Signal>(
-				backups.get(fallenNodeAddress));
+		BlockingQueue<Signal> newSignals = null;
+		synchronized (backups) {
+			newSignals = new LinkedBlockingQueue<Signal>(
+					backups.get(fallenNodeAddress));
+		}
 		if (newSignals.isEmpty()) {
 			return 0;
 		}
@@ -434,26 +448,32 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					;
 				Address futureOwner = members.get(random);
 				chosen.add(futureOwner);
-				List<Signal> auxList = new ArrayList<Signal>();
 				if (i == cicles - 1) {
 					sizeToDistribute = newSignals.size();
 				}
-				newSignals.drainTo(auxList, sizeToDistribute);
-
+				List<Signal> auxList = new ArrayList<Signal>();
 				if (!futureOwner.equals(myAddress)) {
-					if (!auxList.isEmpty()) {
-						this.sendSignals.putAll(futureOwner, auxList);
-						connection
-								.sendMessageTo(
-										futureOwner,
-										new SignalMessage(
-												connection.getMyAddress(),
-												fallenNodeAddress,
-												auxList,
-												SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP));
+					int chunks = sizeToDistribute / CHUNK_SIZE + 1;
+					auxList = new ArrayList<Signal>();
+					newSignals.drainTo(auxList, CHUNK_SIZE);
+					for (int j = 0; j < chunks; j++) {
+						if (!auxList.isEmpty()) {
+							this.sendSignals.putAll(futureOwner, auxList);
+							connection
+									.sendMessageTo(
+											futureOwner,
+											new SignalMessage(
+													connection.getMyAddress(),
+													fallenNodeAddress,
+													auxList,
+													SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP));
 
+						}
 					}
 				} else {
+					auxList = new ArrayList<Signal>();
+					newSignals.drainTo(auxList, sizeToDistribute);
+
 					this.signals.addAll(auxList);
 					for (Signal signal : auxList) {
 						distributeBackup(connection.getMyAddress(),
@@ -461,6 +481,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					}
 
 				}
+
 				ret += auxList.size();
 			}
 			backups.removeAll(fallenNodeAddress);
@@ -541,19 +562,31 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            Destination node
 	 */
 	protected void distributeSignals(Address to) {
+		int sizeToDistribute = 0;
+		int membersQty = 0;
 		synchronized (this.signals) {
+
 			if (this.signals.isEmpty()) {
 				return;
 			}
-			int membersQty = 0;
 			if (connection != null) {
 				membersQty = connection.getMembersQty();
 			}
-			int sizeToDistribute = this.signals.size() / membersQty;
+			sizeToDistribute = this.signals.size() / membersQty;
+		}
+		BlockingQueue<Signal> copy = new LinkedBlockingQueue<Signal>();
+		if (this.signals.drainTo(copy, sizeToDistribute) == 0) {
+			System.out.println("drainTo no deberia pasar");
+		}
+		System.out.println("a distribuir " + copy.size());
+		int chunks = copy.size() / CHUNK_SIZE + 1;
+		List<Signal> distributedList = new ArrayList<Signal>();
+		for (int i = 0; i < chunks; i++) {
 			List<Signal> distSignals = new ArrayList<Signal>();
 			// Sublist of first sizeToDistribute (if available) signals
-			this.signals.drainTo(distSignals, sizeToDistribute);
-
+			if (copy.drainTo(distSignals, CHUNK_SIZE) == 0) {
+				break;
+			}
 			// If theres nothing to send
 			if (!distSignals.isEmpty()) {
 				if (!this.sendSignals.putAll(to, distSignals)) {
@@ -563,23 +596,24 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				connection.sendMessageTo(to,
 						new SignalMessage(connection.getMyAddress(),
 								distSignals, SignalMessageType.YOUR_SIGNALS));
-			}
-
-			// There was only 1 node, so backup must be distributed
-			if (membersQty == 2) {
-				// Removes all, because then will be added again.
-				this.mySignalsBackup.removeAll(connection.getMyAddress());
-				for (Signal signal : this.signals) {
-					// Distribute backup of those signals that are still owned
-					// by this node
-					distributeBackup(connection.getMyAddress(), null, signal);
-				}
-				this.backups.get(connection.getMyAddress()).removeAll(
-						this.signals);
-			} else {
-				removeWhoBackupMySignal(null, distSignals);
+				distributedList.addAll(distSignals);
 			}
 		}
+		System.out.println("distribuidas " + distributedList.size());
+		// There was only 1 node, so backup must be distributed
+		if (membersQty == 2) {
+			// Removes all, because then will be added again.
+			this.mySignalsBackup.removeAll(connection.getMyAddress());
+			for (Signal signal : this.signals) {
+				// Distribute backup of those signals that are still owned
+				// by this node
+				distributeBackup(connection.getMyAddress(), null, signal);
+			}
+			this.backups.get(connection.getMyAddress()).removeAll(this.signals);
+		} else {
+			removeWhoBackupMySignal(null, distributedList);
+		}
+
 	}
 
 	/******************** CHANGE BACKUPS METHODS ********************/
@@ -666,6 +700,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void addSignal(Address from, Signal signal) {
 		this.signals.add(signal);
+		receivedSignals.incrementAndGet();
 		connection.sendMessageTo(from,
 				new SignalMessage(connection.getMyAddress(), signal,
 						SignalMessageType.ADD_SIGNAL_ACK));
@@ -687,6 +722,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	protected void addSignals(Address from, Address fallenNodeAddress,
 			List<Signal> newSignals, String type) {
 		this.signals.addAll(newSignals);
+		receivedSignals.addAndGet(newSignals.size());
 		connection
 				.sendMessageTo(
 						from,

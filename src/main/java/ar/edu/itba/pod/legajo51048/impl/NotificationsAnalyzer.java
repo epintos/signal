@@ -184,14 +184,16 @@ public class NotificationsAnalyzer extends Thread {
 					break;
 
 				case SignalMessageType.FINISHED_REDISTRIBUTION:
-					Semaphore semaphore = semaphores.get(notification
-							.getOtherAddress());
-					if (semaphore == null) {
-						semaphore = new Semaphore(0);
-						semaphores.put(notification.getOtherAddress(),
-								semaphore);
+					synchronized (semaphores) {
+						Semaphore semaphore = semaphores.get(notification
+								.getOtherAddress());
+						if (semaphore == null) {
+							semaphore = new Semaphore(0);
+							semaphores.put(notification.getOtherAddress(),
+									semaphore);
+						}
+						semaphore.release();
 					}
-					semaphore.release();
 					break;
 
 				case SignalMessageType.BYE_NODE:
