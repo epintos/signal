@@ -204,6 +204,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			this.requests.put(requestId, request);
 			connection.broadcastMessage(new SignalMessage(signal, requestId,
 					SignalMessageType.FIND_SIMILAR));
+			result = findSimilarToAux(signal);
 
 			// This while will wait for Results and will not finish until ALL
 			// the results are found (includes 1-tolerance)
@@ -216,9 +217,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+			if(request.retry()){
+				result = findSimilarToAux(signal);
+			}
 			System.out.println("llegaron los resultados memberQty: "
 					+ request.getQty());
-			result = findSimilarToAux(signal);
 			if (request != null) {
 				List<Result> results = request.getResults();
 				for (Result otherResult : results) {

@@ -35,6 +35,8 @@ public class FindRequest {
 	// Request id
 	private int requestId;
 
+	private boolean retry = false;
+	
 	public FindRequest(int requestId, Signal signal, List<Address> addresses,
 			Semaphore semaphore) {
 		this.addresses = addresses;
@@ -77,6 +79,7 @@ public class FindRequest {
 	public void restart(List<Address> newAddresses) {
 		this.semaphore.drainPermits();
 		this.results.clear();
+		this.retry=true;
 		this.addresses = newAddresses;
 		this.qty.set(addresses.size() - 1);
 	}
@@ -87,6 +90,10 @@ public class FindRequest {
 
 	public int getRequestId() {
 		return requestId;
+	}
+	
+	public boolean retry(){
+		return this.retry;
 	}
 
 }
