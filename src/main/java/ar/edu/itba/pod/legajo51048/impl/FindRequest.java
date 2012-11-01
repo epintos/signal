@@ -29,13 +29,16 @@ public class FindRequest {
 	// Results of the request
 	private List<Result> results;
 
+	// Signal to analyze
 	private Signal signal;
+
+	// Request id
 	private int requestId;
 
 	public FindRequest(int requestId, Signal signal, List<Address> addresses,
 			Semaphore semaphore) {
 		this.addresses = addresses;
-		
+
 		// Remove the principal node
 		this.qty = new AtomicInteger(addresses.size() - 1);
 		this.requestId = requestId;

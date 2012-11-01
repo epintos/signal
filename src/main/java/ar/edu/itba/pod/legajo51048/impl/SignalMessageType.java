@@ -21,7 +21,6 @@ public interface SignalMessageType {
 	public static final String IM_READY = "IM_READY";
 	public static final String FINISHED_REDISTRIBUTION = "FINISHED_REDISTRIBUTION";
 
-	/** For node notifications **/
 	public static final String REQUEST_NOTIFICATION = "REQUEST_NOTIFICATION";
 	public static final String ADD_SIGNAL_ACK = "ADD_SIGNAL_ACK";
 	public static final String ADD_SIGNAL_NACK = "ADD_SIGNAL_NACK";

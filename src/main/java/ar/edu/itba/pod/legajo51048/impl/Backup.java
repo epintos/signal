@@ -8,7 +8,7 @@ import org.jgroups.Address;
 import ar.edu.itba.pod.api.Signal;
 
 /**
- * Class that contains the address of the owner of a signal/signals and them.
+ * Class that contains the address of the owner of a signal/s and them.
  * 
  * @author Esteban G. Pintos
  * 

@@ -144,14 +144,6 @@ public class Connection extends ReceiverAdapter {
 						SignalMessageType.FINISHED_REDISTRIBUTION));
 			}
 			break;
-		// case SignalMessageType.STOP_FINDING_SIMILARS:
-		// if (!message.getAddress().equals(getMyAddress())) {
-		// processor
-		// .addNotification(new SignalMessage(
-		// message.getAddress(),
-		// SignalMessageType.STOP_FINDING_SIMILARS));
-		// }
-		// break;
 
 		/** For notifications **/
 		default:
