@@ -2,11 +2,17 @@ package ar.edu.itba.pod.legajo51048.impl;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import org.jgroups.Address;
+
+import com.google.common.collect.Multimap;
+
+import ar.edu.itba.pod.api.Signal;
 
 /**
  * Worker that distributes signals and backups when a node falls. It also re
@@ -23,18 +29,24 @@ public class ByeNodeWorker extends Thread {
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final SignalMessage notification;
 	private Connection connection;
+	private final Multimap<Address, Signal> backups;
+	private final BlockingQueue<Signal> signals;
 
 	public ByeNodeWorker(SignalMessage notification,
 			MultithreadedSignalProcessor processor,
 			ConcurrentMap<Address, Semaphore> tasksDone,
 			ConcurrentMap<Address, Semaphore> semaphores,
-			Connection connection, ConcurrentMap<Integer, FindRequest> requests) {
+			Connection connection,
+			ConcurrentMap<Integer, FindRequest> requests,
+			Multimap<Address, Signal> backups, BlockingQueue<Signal> signals) {
 		this.processor = processor;
 		this.requests = requests;
 		this.tasksDone = tasksDone;
 		this.notification = notification;
 		this.semaphores = semaphores;
 		this.connection = connection;
+		this.backups = backups;
+		this.signals = signals;
 	}
 
 	@Override
@@ -42,22 +54,25 @@ public class ByeNodeWorker extends Thread {
 		try {
 			Address fallenNodeAddress = notification.getAddress();
 
-			// Distribute lost signals.
-			int tasks = processor.distributeNewSignalsFromBackups(notification
-					.getAddress());
+			// Signalibute lost signals.
+			BlockingQueue<Signal> toDistribute = new LinkedBlockingDeque<Signal>();
+			toDistribute.addAll(this.signals);
+			toDistribute.addAll(backups.get(fallenNodeAddress));
+//			processor.distributeNewSignalsFromBackups(toDistribute);
+			processor.distributeSignals(toDistribute);
 
-			Semaphore sem = tasksDone.get(fallenNodeAddress);
-			while (!sem.tryAcquire(tasks, 1, TimeUnit.SECONDS)) {
-				System.out.println("en el 1er while " + sem.availablePermits());
-			}
-
-			// Distribute lost backups.
-			tasks = processor.distributeLostBackups(notification.getAddress());
-			sem = tasksDone.get(fallenNodeAddress);
-			while (!sem.tryAcquire(tasks, 1, TimeUnit.SECONDS)) {
-				System.out.println("en el 2do while " + sem.availablePermits());
-			}
-			tasksDone.remove(fallenNodeAddress);
+//			Semaphore sem = tasksDone.get(fallenNodeAddress);
+//			while (!sem.tryAcquire(tasks, 1, TimeUnit.SECONDS)) {
+//				System.out.println("en el 1er while " + sem.availablePermits());
+//			}
+//
+//			// Distribute lost backups.
+//			tasks = processor.distributeLostBackups(notification.getAddress());
+//			sem = tasksDone.get(fallenNodeAddress);
+//			while (!sem.tryAcquire(tasks, 1, TimeUnit.SECONDS)) {
+//				System.out.println("en el 2do while " + sem.availablePermits());
+//			}
+//			tasksDone.remove(fallenNodeAddress);
 
 			System.out.println("finished distributing");
 			// Tell everyone that distribution finished.
