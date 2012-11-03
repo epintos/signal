@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.log4j.Logger;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
@@ -23,8 +24,10 @@ public class Connection extends ReceiverAdapter {
 	private String clusterName = null;
 	private Set<Address> users = new HashSet<Address>();
 	private MultithreadedSignalProcessor processor;
+	private Logger logger;
 
 	public Connection(String clusterName, MultithreadedSignalProcessor processor) {
+		this.logger = Logger.getLogger("Connection");
 		this.processor = processor;
 		try {
 			this.channel = new JChannel();
@@ -43,6 +46,8 @@ public class Connection extends ReceiverAdapter {
 			// Notifiy all that i'm ready to receive orders.
 			broadcastMessage(new SignalMessage(getMyAddress(),
 					SignalMessageType.IM_READY));
+			logger.info("Node connected to '" + clusterName
+					+ "'. Ready to receive");
 			users.addAll(getMembers());
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -131,12 +136,17 @@ public class Connection extends ReceiverAdapter {
 			break;
 
 		/** For acknowledges **/
-		case SignalMessageType.FINISHED_REDISTRIBUTION:
+		case SignalMessageType.FINISHED_FALLEN_NODE_REDISTRIBUTION:
 			if (!msg.getSrc().equals(getMyAddress())) {
 				processor.addAcknowledge(message);
 			}
 			break;
-		case SignalMessageType.READY_FOR_REDISTRIBUTION:
+		case SignalMessageType.READY_FOR_FALLEN_NODE_REDISTRIBUTION:
+			if (!msg.getSrc().equals(getMyAddress())) {
+				processor.addAcknowledge(message);
+			}
+			break;
+		case SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION:
 			if (!msg.getSrc().equals(getMyAddress())) {
 				processor.addAcknowledge(message);
 			}

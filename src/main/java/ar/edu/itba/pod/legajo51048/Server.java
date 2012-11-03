@@ -10,6 +10,10 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+
 import ar.edu.itba.pod.legajo51048.impl.MultithreadedSignalProcessor;
 
 public class Server {
@@ -18,6 +22,8 @@ public class Server {
 
 	public Server(int port,int threads) {
 		super();
+		BasicConfigurator.configure();
+        Logger.getRootLogger().setLevel(Level.INFO);
 		this.port = port;
 		this.threadsQty = threads;
 	}
