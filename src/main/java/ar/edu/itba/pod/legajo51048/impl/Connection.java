@@ -105,16 +105,16 @@ public class Connection extends ReceiverAdapter {
 			processor.addSignals(msg.getSrc(), message.getSignals(),
 					SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP);
 			break;
-		case SignalMessageType.BACK_UP:
+		case SignalMessageType.ADD_BACK_UP:
 			processor.addBackup(msg.getSrc(), message.getBackup());
 			break;
-		case SignalMessageType.BACK_UPS:
+		case SignalMessageType.ADD_BACK_UPS:
 			processor.addBackups(msg.getSrc(), message.getBackupList());
 			break;
-		case SignalMessageType.CHANGE_BACK_UP_OWNER:
+		case SignalMessageType.CHANGE_SIGNALS_OWNER:
 			if (!myAddress.equals(message.getAddress())) {
-				processor.changeBackupOwner(msg.getSrc(), message.getAddress(),
-						message.getSignals());
+				processor.changeSignalsOwner(msg.getSrc(),
+						message.getAddress(), message.getSignals());
 			}
 			break;
 		case SignalMessageType.FIND_SIMILAR:
@@ -129,14 +129,33 @@ public class Connection extends ReceiverAdapter {
 						.getAddress(), SignalMessageType.NEW_NODE));
 			}
 			break;
+
+		/** For acknowledges **/
 		case SignalMessageType.FINISHED_REDISTRIBUTION:
 			if (!msg.getSrc().equals(getMyAddress())) {
-				processor.addNotification(new SignalMessage(message
-						.getAddress(), message.getOtherAddress(),
-						SignalMessageType.FINISHED_REDISTRIBUTION));
+				processor.addAcknowledge(message);
 			}
 			break;
-
+		case SignalMessageType.READY_FOR_REDISTRIBUTION:
+			if (!msg.getSrc().equals(getMyAddress())) {
+				processor.addAcknowledge(message);
+			}
+			break;
+		case SignalMessageType.ADD_BACKUP_ACK:
+			processor.addAcknowledge(message);
+			break;
+		case SignalMessageType.ADD_BACKUPS_ACK:
+			processor.addAcknowledge(message);
+			break;
+		case SignalMessageType.ADD_SIGNAL_ACK:
+			processor.addAcknowledge(message);
+			break;
+		case SignalMessageType.ADD_SIGNALS_ACK:
+			processor.addAcknowledge(message);
+			break;
+		case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
+			processor.addAcknowledge(message);
+			break;
 		/** For notifications **/
 		default:
 			processor.addNotification(message);

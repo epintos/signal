@@ -3,7 +3,6 @@ package ar.edu.itba.pod.legajo51048.impl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.Semaphore;
@@ -26,31 +25,29 @@ public class NotificationsAnalyzer extends Thread {
 
 	private AtomicBoolean finishedAnalyzer = new AtomicBoolean(false);
 	private final BlockingQueue<SignalMessage> notifications;
-	private final BlockingQueue<Signal> sendSignals;
 	private final MultithreadedSignalProcessor processor;
 	private final Multimap<Address, Signal> backups;
-	private final BlockingQueue<Backup> sendBackups;
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final BlockingQueue<Signal> signals;
 	private Connection connection;
-	private Semaphore semaphore = new Semaphore(0);
+	private Semaphore waitDistributionSemaphore;
+	private Semaphore waitReadyForDistributionSemaphore;
 
 	public NotificationsAnalyzer(BlockingQueue<Signal> signals,
 			BlockingQueue<SignalMessage> notifications,
-			BlockingQueue<Signal> sendSignals,
 			MultithreadedSignalProcessor processor,
-			BlockingQueue<Backup> sendBackups,
 			ConcurrentMap<Integer, FindRequest> requests,
 
-			Multimap<Address, Signal> backups, Connection connection) {
+			Multimap<Address, Signal> backups, Connection connection,
+			Semaphore semaphore1, Semaphore semaphore2) {
 		this.signals = signals;
 		this.notifications = notifications;
-		this.sendSignals = sendSignals;
 		this.processor = processor;
-		this.sendBackups = sendBackups;
 		this.requests = requests;
 		this.connection = connection;
 		this.backups = backups;
+		this.waitDistributionSemaphore = semaphore1;
+		this.waitReadyForDistributionSemaphore = semaphore2;
 	}
 
 	public void finish() {
@@ -73,61 +70,8 @@ public class NotificationsAnalyzer extends Thread {
 							notification.getAddress());
 					break;
 
-				case SignalMessageType.ADD_SIGNAL_ACK:
-					if (!sendSignals.remove(notification.getSignal())) {
-						System.out.println("esto no deberia pasar "
-								+ SignalMessageType.ADD_SIGNAL_ACK);
-					}
-					processor.distributeBackup(notification.getAddress(),
-							notification.getSignal());
-					break;
-
-				case SignalMessageType.ADD_SIGNALS_ACK:
-					if (!sendSignals.removeAll(notification.getSignals())) {
-						System.out.println("esto no deberia pasar "
-								+ SignalMessageType.ADD_SIGNALS_ACK);
-					}
-					// Tell everyone that some backup owners have changed
-					Address signalOwner = notification.getAddress();
-					connection.broadcastMessage(new SignalMessage(signalOwner,
-							notification.getSignals(),
-							SignalMessageType.CHANGE_BACK_UP_OWNER));
-					break;
-
-				case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
-					for (Signal s : notification.getSignals()) {
-						if (!sendSignals.remove(s)) {
-							System.out
-									.println("esto no deberia pasar "
-											+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
-						}
-						processor
-								.distributeBackup(notification.getAddress(), s);
-					}
-					break;
-
-				case SignalMessageType.ADD_BACKUP_ACK:
-					if (!sendBackups.remove(notification.getBackup())) {
-						System.out.println("no deberia pasar "
-								+ SignalMessageType.ADD_BACKUP_ACK);
-					}
-
-					break;
-
-				case SignalMessageType.ADD_BACKUPS_ACK:
-					if (!sendBackups.removeAll(notification.getBackupList())) {
-						System.out.println("no deberia pasar "
-								+ SignalMessageType.ADD_BACKUPS_ACK);
-					}
-					break;
-
 				case SignalMessageType.NEW_NODE:
 					processor.distributeSignals(notification.getAddress());
-					break;
-
-				case SignalMessageType.FINISHED_REDISTRIBUTION:
-					System.out.println("llega FINISHED_REDISTRIBUTION ");
-					semaphore.release();
 					break;
 
 				case SignalMessageType.BYE_NODE:
@@ -136,16 +80,34 @@ public class NotificationsAnalyzer extends Thread {
 
 					// Signalibute lost signals.
 					BlockingQueue<Signal> toDistribute = new LinkedBlockingDeque<Signal>();
-					toDistribute.addAll(this.signals);
-					System.out.println("signals size:" + this.signals.size());
-					System.out.println("backups size:"
-							+ this.backups.get(fallenNodeAddress).size());
-					toDistribute.addAll(backups.get(fallenNodeAddress));
-					this.signals.clear();
-					this.backups.clear();
+					synchronized (signals) {
+						System.out.println("signals size:"
+								+ this.signals.size());
+						toDistribute.addAll(this.signals);
+						this.signals.clear();
+					}
+					synchronized (backups) {
+						System.out.println("backups size:"
+								+ this.backups.get(fallenNodeAddress).size());
+						toDistribute.addAll(backups.get(fallenNodeAddress));
+						this.backups.clear();
+					}
+					connection.broadcastMessage(new SignalMessage(connection
+							.getMyAddress(),
+							SignalMessageType.READY_FOR_REDISTRIBUTION));
+					
+					while (!waitReadyForDistributionSemaphore.tryAcquire(
+							connection.getMembersQty() - 1, 1000,
+							TimeUnit.MILLISECONDS)) {
+						System.out
+								.println("while de READY_FOR_REDISTRIBUTION: "
+										+ waitReadyForDistributionSemaphore
+												.availablePermits());
+					}
+					System.out.println("todos terminan de distribuir");
+					waitReadyForDistributionSemaphore.drainPermits();
 					System.out.println("to distribute: " + toDistribute.size());
 					processor.distributeSignals(toDistribute);
-
 					System.out.println("finished distributing");
 					// Tell everyone that distribution finished.
 					connection.broadcastMessage(new SignalMessage(connection
@@ -153,13 +115,13 @@ public class NotificationsAnalyzer extends Thread {
 							SignalMessageType.FINISHED_REDISTRIBUTION));
 
 					// Wait for all the nodes to distribute
-					while (!semaphore.tryAcquire(
+					while (!waitDistributionSemaphore.tryAcquire(
 							connection.getMembersQty() - 1, 1000,
 							TimeUnit.MILLISECONDS)) {
 						System.out.println("while de FINISHED_REDISTRIBUTION: "
-								+ semaphore.availablePermits());
+								+ waitDistributionSemaphore.availablePermits());
 					}
-					semaphore = new Semaphore(0);
+					waitDistributionSemaphore.drainPermits();
 					System.out.println("finished recovery");
 
 					// Find requests that had aborted cause the node fell
