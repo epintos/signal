@@ -42,7 +42,7 @@ public class Client {
 				String line = in.readLine().toLowerCase();
 				long start = System.nanoTime();
 				if (line.equals("1")) {
-					node.join("cluster");
+					node.join("epintos");
 				}
 				else if (line.equals("2")) {
 					node.exit();
@@ -63,7 +63,7 @@ public class Client {
 				} else if (line.equals("9")) {
 					this.generate(sp, 30000);
 				} else if (line.equals("10")) {
-					this.generate(sp, 60000);
+					this.generate(sp, 40000);
 				} else if (line.equals("11")) {
 					this.generate(sp, 1000000);
 				} else if (line.equals("12")) {
@@ -100,7 +100,7 @@ public class Client {
 		System.out.println("7 - Add 100 signals");
 		System.out.println("8 - Add 1.000 signals");
 		System.out.println("9 - Add 30.000 signals");
-		System.out.println("10 - Add 60.000 signals");
+		System.out.println("10 - Add 40.000 signals");
 		System.out.println("11 - Add 1.000.000 signals");
 		System.out.println("12 - Add 140.000 signals");
 		System.out.println("0 - End");

@@ -27,6 +27,7 @@ public class SignalMessage implements Serializable {
 	private Backup backup;
 	private List<Backup> backupList;
 	private Address otherAddress;
+	private long timestamp;
 
 	public SignalMessage(Signal signal) {
 		this.signal = signal;
@@ -37,11 +38,13 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
-	public SignalMessage(Signal signal, int requestId, String type) {
+	public SignalMessage(Signal signal, Address address, int requestId,
+			long timestamp, String type) {
 		this.signal = signal;
 		this.type = type;
+		this.address = address;
 		this.requestId = requestId;
-
+		this.timestamp = timestamp;
 	}
 
 	public SignalMessage(Address address, Signal signal, String type) {
@@ -109,10 +112,12 @@ public class SignalMessage implements Serializable {
 		this.requestId = id;
 	}
 
-	public SignalMessage(Address address, Result result, int id, String type) {
+	public SignalMessage(Address address, Result result, int id, String type,
+			long timestamp) {
 		this.result = result;
 		this.address = address;
 		this.type = type;
+		this.timestamp = timestamp;
 		this.requestId = id;
 	}
 
@@ -169,5 +174,9 @@ public class SignalMessage implements Serializable {
 
 	public Address getOtherAddress() {
 		return otherAddress;
+	}
+
+	public long getTimestamp() {
+		return timestamp;
 	}
 }

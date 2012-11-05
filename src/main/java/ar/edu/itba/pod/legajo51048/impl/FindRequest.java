@@ -35,18 +35,20 @@ public class FindRequest {
 	// Request id
 	private int requestId;
 
-	private boolean retry = false;
-	
-	public FindRequest(int requestId, Signal signal, List<Address> addresses,
-			Semaphore semaphore) {
-		this.addresses = addresses;
+	private long timestamp;
 
+	private boolean retry = false;
+
+	public FindRequest(int requestId, Signal signal, List<Address> addresses,
+			Semaphore semaphore, long timestamp) {
+		this.addresses = addresses;
 		// Remove the principal node
 		this.qty = new AtomicInteger(addresses.size() - 1);
 		this.requestId = requestId;
 		this.signal = signal;
 		this.semaphore = semaphore;
 		this.results = new ArrayList<Result>();
+		this.timestamp = timestamp;
 	}
 
 	public List<Address> getAddresses() {
@@ -58,9 +60,9 @@ public class FindRequest {
 	}
 
 	public List<Result> getResults() {
-		if (qty.get() != 0) {
-			System.out.println("no deberia pasar, qty!=0");
-		}
+//		if (qty.get() != 0) {
+//			System.out.println("no deberia pasar, qty!=0");
+//		}
 		return results;
 	}
 
@@ -68,20 +70,25 @@ public class FindRequest {
 		return qty.get();
 	}
 
-	public void addResult(Result result, Address address) {
+	public synchronized void addResult(Result result, Address address, long timestamp) {
+		if(timestamp != this.timestamp){
+			System.out.println("llega viejo");
+			return;
+		}
 		this.results.add(result);
 		this.addresses.remove(address);
-		this.qty.decrementAndGet();
+//		this.qty.decrementAndGet();
 		this.semaphore.release();
 		System.out.println("agrego resultado de " + address);
 	}
 
-	public void restart(List<Address> newAddresses) {
+	public synchronized void restart(List<Address> newAddresses, long timestamp) {
 		this.semaphore.drainPermits();
 		this.results.clear();
-		this.retry=true;
+		this.retry = true;
 		this.addresses = newAddresses;
 		this.qty.set(addresses.size() - 1);
+		this.timestamp = timestamp;
 	}
 
 	public Signal getSignal() {
@@ -91,9 +98,13 @@ public class FindRequest {
 	public int getRequestId() {
 		return requestId;
 	}
-	
-	public boolean retry(){
+
+	public boolean retry() {
 		return this.retry;
+	}
+
+	public long getTimestamp() {
+		return this.timestamp;
 	}
 
 }

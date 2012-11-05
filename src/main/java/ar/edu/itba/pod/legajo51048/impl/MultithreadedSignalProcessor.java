@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.Logger;
@@ -77,6 +78,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private static final int CHUNK_SIZE = 300;
 
 	private Logger logger;
+
+	private AtomicBoolean degradedMode = new AtomicBoolean(false);
 
 	public MultithreadedSignalProcessor(int threadsQty) {
 		ArrayListMultimap<Address, Signal> list = ArrayListMultimap.create();
@@ -146,17 +149,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public NodeStats getStats() throws RemoteException {
-		// System.out.println("backups");
-		// System.out.println("-----------");
-		// for (Address addr : backups.keySet()) {
-		// for (Signal s : backups.get(addr)) {
-		// }
-		// System.out.println(addr + " " + backups.get(addr).size());
-		// }
-		// System.out.println("-----------");
 		return new NodeStats("cluster " + connection.getClusterName(),
 				receivedSignals.longValue(), signals.size(), backups.size(),
-				true);
+				degradedMode.get());
 	}
 
 	/**
@@ -185,6 +180,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public Result findSimilarTo(Signal signal) throws RemoteException {
+
+		receivedSignals.incrementAndGet();
 		if (signal == null) {
 			throw new IllegalArgumentException("Signal cannot be null");
 		}
@@ -198,20 +195,22 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			// I don't have to send the request to me
 
 			Semaphore semaphore = new Semaphore(0);
+			long timestamp = System.currentTimeMillis();
 			FindRequest request = new FindRequest(requestId, signal, addresses,
-					semaphore);
+					semaphore, timestamp);
 			this.requests.put(requestId, request);
-			connection.broadcastMessage(new SignalMessage(signal, requestId,
+			connection.broadcastMessage(new SignalMessage(signal, connection
+					.getMyAddress(), requestId, timestamp,
 					SignalMessageType.FIND_SIMILAR));
 			result = findSimilarToAux(signal);
 
 			// This while will wait for Results and will not finish until ALL
-			// the results are found (includes 1-tolerance)
+			// the results arrived (includes 1-tolerance)
 			try {
-				while (!semaphore.tryAcquire(request.getQty(), 10000,
+				while (!semaphore.tryAcquire(request.getQty(), 1000,
 						TimeUnit.MILLISECONDS)) {
-					logger.info("Esperando resultados: "
-							+ semaphore.availablePermits());
+					logger.info("Waiting for results of "
+							+ semaphore.availablePermits() + " nodes");
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
@@ -219,8 +218,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			if (request.retry()) {
 				result = findSimilarToAux(signal);
 			}
-			logger.info("llegaron los resultados memberQty: "
-					+ request.getQty());
 			if (request != null) {
 				List<Result> results = request.getResults();
 				for (Result otherResult : results) {
@@ -249,12 +246,13 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            Id of the request
 	 * @return Result of similar signals
 	 */
-	protected void findMySimilars(Address from, Signal signal, int id) {
+	protected void findMySimilars(Address from, Signal signal, int id,
+			long timestamp) {
 		logger.info(connection.getMyAddress() + " findingSimilars...");
 		Result result = findSimilarToAux(signal);
 		connection.sendMessageTo(from,
 				new SignalMessage(connection.getMyAddress(), result, id,
-						SignalMessageType.REQUEST_NOTIFICATION));
+						SignalMessageType.REQUEST_NOTIFICATION, timestamp));
 		logger.info(connection.getMyAddress() + " finishedFindingSimilars....");
 	}
 
@@ -601,7 +599,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void addSignal(Address from, Signal signal) {
 		this.signals.add(signal);
-		receivedSignals.incrementAndGet();
 		connection.sendMessageTo(from,
 				new SignalMessage(connection.getMyAddress(), signal,
 						SignalMessageType.ADD_SIGNAL_ACK));
@@ -622,7 +619,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void addSignals(Address from, List<Signal> newSignals, String type) {
 		this.signals.addAll(newSignals);
-		receivedSignals.addAndGet(newSignals.size());
 		connection
 				.sendMessageTo(
 						from,
@@ -697,6 +693,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	private int random(int limit) {
 		Random random = new Random();
 		return random.nextInt(limit);
+	}
+
+	public void setDegradedMode(boolean state) {
+		degradedMode.set(state);
 	}
 
 }

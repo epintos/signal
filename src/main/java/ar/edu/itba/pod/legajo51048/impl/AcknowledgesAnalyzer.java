@@ -16,6 +16,7 @@ public class AcknowledgesAnalyzer extends Thread {
 	private final BlockingQueue<Signal> sendSignals;
 	private final MultithreadedSignalProcessor processor;
 	private final BlockingQueue<Backup> sendBackups;
+	private final ConcurrentMap<Integer, FindRequest> requests;
 	private Connection connection;
 	private Semaphore waitReadyForFallenDistributionSemaphore;
 	private Semaphore waitFallenDistributionSemaphore;
@@ -32,6 +33,7 @@ public class AcknowledgesAnalyzer extends Thread {
 		this.acknowledges = acknowledges;
 		this.sendSignals = sendSignals;
 		this.processor = processor;
+		this.requests = requests;
 		this.sendBackups = sendBackups;
 		this.connection = connection;
 		this.waitFallenDistributionSemaphore = semaphore1;
@@ -52,7 +54,14 @@ public class AcknowledgesAnalyzer extends Thread {
 				acknowledge = acknowledges.take();
 
 				switch (acknowledge.getType()) {
-
+				
+				case SignalMessageType.REQUEST_NOTIFICATION:
+					FindRequest request = requests.get(acknowledge
+							.getRequestId());
+					request.addResult(acknowledge.getResult(),
+							acknowledge.getAddress(),
+							acknowledge.getTimestamp());
+					break;
 				case SignalMessageType.ADD_SIGNAL_ACK:
 					if (!sendSignals.remove(acknowledge.getSignal())) {
 						logger.warn("esto no deberia pasar "
@@ -76,7 +85,7 @@ public class AcknowledgesAnalyzer extends Thread {
 					for (Signal s : acknowledge.getSignals()) {
 						if (!sendSignals.remove(s)) {
 							logger.warn("esto no deberia pasar "
-											+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
+									+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
 						}
 						processor.distributeBackup(acknowledge.getAddress(), s);
 					}

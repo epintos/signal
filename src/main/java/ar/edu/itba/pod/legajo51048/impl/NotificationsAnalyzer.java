@@ -68,37 +68,39 @@ public class NotificationsAnalyzer extends Thread {
 
 				switch (notification.getType()) {
 
-				case SignalMessageType.REQUEST_NOTIFICATION:
-					FindRequest request = requests.get(notification
-							.getRequestId());
-					request.addResult(notification.getResult(),
-							notification.getAddress());
+				case SignalMessageType.FIND_SIMILAR:
+					processor.findMySimilars(notification.getAddress(),
+							notification.getSignal(),
+							notification.getRequestId(),
+							notification.getTimestamp());
 					break;
-
 				case SignalMessageType.NEW_NODE:
+					processor.setDegradedMode(true);
 					logger.info("New node detected. Starting distribution...");
 					processor.distributeSignals(notification.getAddress());
 					logger.info("Finished new node distribution.");
 					connection
 							.broadcastMessage(new SignalMessage(
 									connection.getMyAddress(),
+									notification.getAddress(),
 									SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION));
 					while (!waitNewDistributionSemaphore.tryAcquire(
-							connection.getMembersQty() - 2, 1000,
+							connection.getMembersQty() - 2, 5000,
 							TimeUnit.MILLISECONDS)) {
-						logger.info("while de FINISHED_NEW_NODE_REDISTRIBUTION: "
+						logger.info("Waiting for "
 								+ waitNewDistributionSemaphore
-										.availablePermits());
+										.availablePermits()
+								+ " nodes to finish new node distribution ");
 					}
 					logger.info("System recovered from new node");
+					processor.setDegradedMode(false);
 					break;
 
 				case SignalMessageType.BYE_NODE:
-
+					processor.setDegradedMode(true);
 					Address fallenNodeAddress = notification.getAddress();
 					logger.info("Fallen " + fallenNodeAddress
 							+ " node detected. Preparing distribution...");
-					// Signalibute lost signals.
 					BlockingQueue<Signal> toDistribute = new LinkedBlockingDeque<Signal>();
 					synchronized (signals) {
 						toDistribute.addAll(this.signals);
@@ -114,11 +116,12 @@ public class NotificationsAnalyzer extends Thread {
 									SignalMessageType.READY_FOR_FALLEN_NODE_REDISTRIBUTION));
 
 					while (!waitReadyForFallenDistributionSemaphore.tryAcquire(
-							connection.getMembersQty() - 1, 1000,
+							connection.getMembersQty() - 1, 5000,
 							TimeUnit.MILLISECONDS)) {
-						logger.info("while de READY_FOR_REDISTRIBUTION: "
+						logger.info("Waiting for "
 								+ waitReadyForFallenDistributionSemaphore
-										.availablePermits());
+										.availablePermits()
+								+ " nodes to be ready for fallen node distribution");
 					}
 					logger.info("System ready for fallen node distribution. Starting...");
 					waitReadyForFallenDistributionSemaphore.drainPermits();
@@ -132,33 +135,36 @@ public class NotificationsAnalyzer extends Thread {
 
 					// Wait for all the nodes to distribute
 					while (!waitFallenDistributionSemaphore.tryAcquire(
-							connection.getMembersQty() - 1, 1000,
+							connection.getMembersQty() - 1, 5000,
 							TimeUnit.MILLISECONDS)) {
-						logger.info("while de FINISHED_REDISTRIBUTION: "
+						logger.info("Waiting for "
 								+ waitFallenDistributionSemaphore
-										.availablePermits());
+										.availablePermits()
+								+ " nodes to finish fallen node redistribution");
 					}
 					waitFallenDistributionSemaphore.drainPermits();
 					logger.info("System recovered from node fallen");
 
-					// Find requests that had aborted cause the node fell
+					// Find requests that had aborted cause a node fell
 					for (FindRequest r : requests.values()) {
 						if (r.getAddresses().contains(fallenNodeAddress)) {
 							List<Address> addresses = new ArrayList<Address>(
 									connection.getMembers());
-							r.restart(addresses);
+							long timestamp = System.currentTimeMillis();
+							r.restart(addresses, timestamp);
 							connection.broadcastMessage(new SignalMessage(r
-									.getSignal(), r.getRequestId(),
+									.getSignal(), connection.getMyAddress(), r
+									.getRequestId(),
+									System.currentTimeMillis(),
 									SignalMessageType.FIND_SIMILAR));
 
 						}
 					}
-
+					processor.setDegradedMode(false);
 					break;
 				}
 			} catch (InterruptedException e) {
 			}
 		}
 	}
-
 }

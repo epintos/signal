@@ -122,14 +122,18 @@ public class Connection extends ReceiverAdapter {
 						message.getAddress(), message.getSignals());
 			}
 			break;
+		case SignalMessageType.REQUEST_NOTIFICATION:
+			if (!myAddress.equals(msg.getSrc())) {
+				processor.addAcknowledge(message);
+			}
+			break;
 		case SignalMessageType.FIND_SIMILAR:
 			if (!myAddress.equals(msg.getSrc())) {
-				processor.findMySimilars(msg.getSrc(), message.getSignal(),
-						message.getRequestId());
+				processor.addNotification(message);
 			}
 			break;
 		case SignalMessageType.IM_READY:
-			if (!message.getAddress().equals(getMyAddress())) {
+			if (!message.getAddress().equals(myAddress)) {
 				processor.addNotification(new SignalMessage(message
 						.getAddress(), SignalMessageType.NEW_NODE));
 			}
@@ -137,7 +141,7 @@ public class Connection extends ReceiverAdapter {
 
 		/** For acknowledges **/
 		case SignalMessageType.FINISHED_FALLEN_NODE_REDISTRIBUTION:
-			if (!msg.getSrc().equals(getMyAddress())) {
+			if (!msg.getSrc().equals(myAddress)) {
 				processor.addAcknowledge(message);
 			}
 			break;
@@ -147,7 +151,8 @@ public class Connection extends ReceiverAdapter {
 			}
 			break;
 		case SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION:
-			if (!msg.getSrc().equals(getMyAddress())) {
+			if (!msg.getSrc().equals(getMyAddress())
+					&& !message.getOtherAddress().equals(getMyAddress())) {
 				processor.addAcknowledge(message);
 			}
 			break;
