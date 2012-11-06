@@ -52,7 +52,7 @@ public class AcknowledgesAnalyzer extends Thread {
 
 				switch (acknowledge.getType()) {
 				case SignalMessageType.FIND_SIMILAR_RESULT:
-					FindRequest request = requests.get(acknowledge.getNumber());
+					FindRequest request = requests.get(acknowledge.getRequestId());
 					request.addResult(acknowledge.getResult(),
 							acknowledge.getAddress(),
 							acknowledge.getTimestamp());

@@ -30,6 +30,7 @@ public class NotificationsAnalyzer extends Thread {
 	private final Multimap<Address, Signal> backups;
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private final BlockingQueue<Signal> signals;
+	private final BlockingQueue<Address> members;
 	private Connection connection;
 	private Semaphore waitFallenDistributionSemaphore;
 	private Semaphore waitReadyForFallenDistributionSemaphore;
@@ -42,8 +43,10 @@ public class NotificationsAnalyzer extends Thread {
 			ConcurrentMap<Integer, FindRequest> requests,
 
 			Multimap<Address, Signal> backups, Connection connection,
-			Semaphore semaphore1, Semaphore semaphore2, Semaphore semaphore3) {
+			BlockingQueue<Address> members, Semaphore semaphore1,
+			Semaphore semaphore2, Semaphore semaphore3) {
 		this.signals = signals;
+		this.members = members;
 		this.notifications = notifications;
 		this.processor = processor;
 		this.requests = requests;
@@ -61,7 +64,8 @@ public class NotificationsAnalyzer extends Thread {
 
 	@Override
 	public void run() {
-		int qty = connection.getMembersQty() - 1;
+		int qty = members.size() - 1;
+		System.out.println(qty);
 		try {
 			while (!waitNewDistributionSemaphore.tryAcquire(qty, 3000,
 					TimeUnit.MILLISECONDS)) {
@@ -82,20 +86,27 @@ public class NotificationsAnalyzer extends Thread {
 
 				case SignalMessageType.FIND_SIMILAR:
 					processor.findMySimilars(notification.getAddress(),
-							notification.getSignal(), notification.getNumber(),
+							notification.getSignal(),
+							notification.getRequestId(),
 							notification.getTimestamp());
 					break;
 				case SignalMessageType.NEW_NODE:
 					processor.setDegradedMode(true);
-					qty = notification.getNumber() - 2;
+					this.members.put(notification.getAddress());
+					qty = this.members.size() - 2;
+					System.out.println(qty);
 					logger.info("New node detected. Starting distribution...");
 					processor.distributeSignals(notification.getAddress());
 					logger.info("Finished new node distribution.");
-					connection
-							.broadcastMessage(new SignalMessage(
-									connection.getMyAddress(),
-									notification.getAddress(),
-									SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION));
+					for (Address addr : this.members) {
+						connection
+								.sendMessageTo(
+										addr,
+										new SignalMessage(
+												connection.getMyAddress(),
+												notification.getAddress(),
+												SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION));
+					}
 					while (!waitNewDistributionSemaphore.tryAcquire(qty, 3000,
 							TimeUnit.MILLISECONDS)) {
 						logger.info("Waiting for "
@@ -110,24 +121,22 @@ public class NotificationsAnalyzer extends Thread {
 				case SignalMessageType.BYE_NODE:
 					processor.setDegradedMode(true);
 					Address fallenNodeAddress = notification.getAddress();
+					this.members.remove(fallenNodeAddress);
+					qty = members.size();
 					logger.info("Fallen " + fallenNodeAddress
 							+ " node detected. Preparing distribution...");
 					BlockingQueue<Signal> toDistribute = new LinkedBlockingDeque<Signal>();
-					synchronized (signals) {
-						toDistribute.addAll(this.signals);
-						this.signals.clear();
-					}
-					synchronized (backups) {
-						toDistribute.addAll(backups.get(fallenNodeAddress));
-						this.backups.clear();
-					}
+					toDistribute.addAll(this.signals);
+					this.signals.clear();
+					toDistribute.addAll(backups.get(fallenNodeAddress));
+					this.backups.clear();
 					connection
 							.broadcastMessage(new SignalMessage(
 									connection.getMyAddress(),
 									SignalMessageType.READY_FOR_FALLEN_NODE_REDISTRIBUTION));
 
 					while (!waitReadyForFallenDistributionSemaphore.tryAcquire(
-							connection.getMembersQty() - 1, 5000,
+							qty - 1, 5000,
 							TimeUnit.MILLISECONDS)) {
 						logger.info("Waiting for "
 								+ waitReadyForFallenDistributionSemaphore
@@ -147,7 +156,7 @@ public class NotificationsAnalyzer extends Thread {
 
 					// Wait for all the nodes to distribute
 					while (!waitFallenDistributionSemaphore.tryAcquire(
-							connection.getMembersQty() - 1, 3000,
+							qty - 1, 3000,
 							TimeUnit.MILLISECONDS)) {
 						logger.info("Waiting for "
 								+ waitFallenDistributionSemaphore
@@ -156,7 +165,7 @@ public class NotificationsAnalyzer extends Thread {
 					}
 					waitFallenDistributionSemaphore.drainPermits();
 					logger.info("System recovered from node fallen");
-
+					
 					// Find requests that had aborted cause a node fell.
 					// Timestamp is added because old results may arrive, so
 					// they are discarted

@@ -44,7 +44,7 @@ public class Connection extends ReceiverAdapter {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
 			// Notifiy all that i'm ready to receive orders.
-			broadcastMessage(new SignalMessage(getMyAddress(), getMembersQty(),
+			broadcastMessage(new SignalMessage(getMyAddress(),
 					SignalMessageType.IM_READY));
 			logger.info("Node connected to '" + clusterName
 					+ "'. Ready to receive");
@@ -103,8 +103,7 @@ public class Connection extends ReceiverAdapter {
 			processor.addSignal(message.getAddress(), message.getSignal());
 			break;
 		case SignalMessageType.ADD_SIGNALS:
-			processor.addSignals(msg.getSrc(), message.getSignals(),
-					SignalMessageType.ADD_SIGNALS);
+			processor.addSignals(msg.getSrc(), message.getSignals());
 			break;
 		case SignalMessageType.ADD_BACK_UP:
 			processor.addBackup(message.getAddress(), message.getBackup());
@@ -129,8 +128,7 @@ public class Connection extends ReceiverAdapter {
 		case SignalMessageType.IM_READY:
 			if (!message.getAddress().equals(myAddress)) {
 				processor.addNotification(new SignalMessage(message
-						.getAddress(), message.getNumber(),
-						SignalMessageType.NEW_NODE));
+						.getAddress(), SignalMessageType.NEW_NODE));
 			}
 			break;
 

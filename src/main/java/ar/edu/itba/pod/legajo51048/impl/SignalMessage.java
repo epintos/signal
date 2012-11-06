@@ -23,7 +23,7 @@ public class SignalMessage implements Serializable {
 	private String type;
 	private Address address;
 	private Result result;
-	private int number;
+	private int requestId;
 	private Backup backup;
 	private List<Backup> backupList;
 	private Address otherAddress;
@@ -43,14 +43,8 @@ public class SignalMessage implements Serializable {
 		this.signal = signal;
 		this.type = type;
 		this.address = address;
-		this.number = requestId;
+		this.requestId = requestId;
 		this.timestamp = timestamp;
-	}
-
-	public SignalMessage(Address address, int number, String type) {
-		this.type = type;
-		this.address = address;
-		this.number = number;
 	}
 
 	public SignalMessage(Address address, Signal signal, String type) {
@@ -88,7 +82,7 @@ public class SignalMessage implements Serializable {
 		this.address = address;
 		this.type = type;
 		this.timestamp = timestamp;
-		this.number = id;
+		this.requestId = id;
 	}
 
 	public SignalMessage(Address address, List<Signal> signals, String type) {
@@ -117,8 +111,8 @@ public class SignalMessage implements Serializable {
 		return result;
 	}
 
-	public int getNumber() {
-		return number;
+	public int getRequestId() {
+		return requestId;
 	}
 
 	public Backup getBackup() {

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
 
 import org.jgroups.Address;
 
@@ -42,10 +43,12 @@ public class FindRequest {
 	// his results
 	private boolean retry = false;
 
+	private Logger logger;
+
 	public FindRequest(int requestId, Signal signal, List<Address> addresses,
 			Semaphore semaphore, long timestamp) {
 		this.addresses = addresses;
-
+		this.logger = Logger.getLogger("FindRequest");
 		// Remove the principal node
 		this.qty = new AtomicInteger(addresses.size() - 1);
 		this.requestId = requestId;
@@ -71,16 +74,15 @@ public class FindRequest {
 		return qty.get();
 	}
 
-	public synchronized void addResult(Result result, Address address,
-			long timestamp) {
+	public void addResult(Result result, Address address, long timestamp) {
 		if (timestamp != this.timestamp) {
-			System.out.println("llega viejo");
+			logger.warning("Old result arriving");
 			return;
 		}
 		this.results.add(result);
 		this.addresses.remove(address);
 		this.semaphore.release();
-		System.out.println("agrego resultado de " + address);
+		logger.info("Adding result of " + address);
 	}
 
 	public void restart(List<Address> newAddresses, long timestamp) {
