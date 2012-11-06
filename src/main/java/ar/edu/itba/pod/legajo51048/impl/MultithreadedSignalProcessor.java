@@ -111,6 +111,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			throw new IllegalStateException(
 					"Can't join a cluster because there are signals already stored");
 		}
+		logger.info("Joining cluster " + clusterName + " ...");
 		this.connection = new Connection(clusterName, this);
 		this.members = new LinkedBlockingQueue<Address>(connection.getMembers());
 		this.initializeAnalyzers();
@@ -120,6 +121,14 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	@Override
 	public void exit() throws RemoteException {
 		logger.info("Starting exit...");
+		if (connected()) {
+			connection.disconnect();
+			if (getMembersQty() == 1) {
+				connection.close();
+			}
+			this.members = null;
+			connection = null;
+		}
 		signals.clear();
 		backups.clear();
 		notifications.clear();
@@ -145,15 +154,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				;
 			this.executor = Executors.newFixedThreadPool(threadsQty);
 		} catch (InterruptedException e) {
-			e.printStackTrace();
 		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-		if (connection != null) {
-			connection.disconnect();
-			this.members = null;
-			connection = null;
 		}
 	}
 
@@ -226,9 +227,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				result = findSimilarToAux(signal);
 			}
 			List<Result> results = request.getResults();
-			for (Result otherResult : results) {
-				for (Item item : otherResult.items()) {
-					result = result.include(item);
+			if (results != null) {
+				for (Result otherResult : results) {
+					for (Item item : otherResult.items()) {
+						result = result.include(item);
+					}
 				}
 			}
 		} else {
@@ -583,9 +586,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void addSignal(Address from, Signal signal) {
 		this.signals.add(signal);
-		connection.sendMessageTo(from,
-				new SignalMessage(getMyAddress(), signal,
-						SignalMessageType.ADD_SIGNAL_ACK));
+		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
+				signal, SignalMessageType.ADD_SIGNAL_ACK));
 	}
 
 	/**
@@ -598,9 +600,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void addSignals(Address from, List<Signal> newSignals) {
 		this.signals.addAll(newSignals);
-		connection.sendMessageTo(from,
-				new SignalMessage(getMyAddress(), newSignals,
-						SignalMessageType.ADD_SIGNALS_ACK));
+		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
+				newSignals, SignalMessageType.ADD_SIGNALS_ACK));
 
 	}
 
@@ -616,9 +617,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void addBackup(Address from, Backup backup) {
 		this.backups.put(backup.getAddress(), backup.getSignal());
-		connection.sendMessageTo(from,
-				new SignalMessage(getMyAddress(), backup,
-						SignalMessageType.ADD_BACKUP_ACK));
+		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
+				backup, SignalMessageType.ADD_BACKUP_ACK));
 	}
 
 	/**
@@ -633,9 +633,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		for (Backup backup : backupList) {
 			this.backups.put(backup.getAddress(), backup.getSignal());
 		}
-		connection.sendMessageTo(from,
-				new SignalMessage(getMyAddress(),
-						SignalMessageType.ADD_BACKUPS_ACK, backupList));
+		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
+				SignalMessageType.ADD_BACKUPS_ACK, backupList));
 	}
 
 	/**

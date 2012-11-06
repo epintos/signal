@@ -34,8 +34,6 @@ public class Connection extends ReceiverAdapter {
 			this.clusterName = clusterName;
 			this.connect();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
 	}
 
@@ -50,8 +48,6 @@ public class Connection extends ReceiverAdapter {
 					+ "'. Ready to receive");
 			users.addAll(getMembers());
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
 	}
 
@@ -63,7 +59,6 @@ public class Connection extends ReceiverAdapter {
 		try {
 			this.channel.send(new Message(address, obj));
 		} catch (Exception e) {
-			e.printStackTrace();
 		}
 	}
 
