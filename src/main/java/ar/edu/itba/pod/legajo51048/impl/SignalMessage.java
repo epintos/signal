@@ -23,7 +23,7 @@ public class SignalMessage implements Serializable {
 	private String type;
 	private Address address;
 	private Result result;
-	private int requestId;
+	private int number;
 	private Backup backup;
 	private List<Backup> backupList;
 	private Address otherAddress;
@@ -43,28 +43,20 @@ public class SignalMessage implements Serializable {
 		this.signal = signal;
 		this.type = type;
 		this.address = address;
-		this.requestId = requestId;
+		this.number = requestId;
 		this.timestamp = timestamp;
 	}
 
-	public SignalMessage(Address address, int requestId, String type) {
+	public SignalMessage(Address address, int number, String type) {
 		this.type = type;
 		this.address = address;
-		this.requestId = requestId;
+		this.number = number;
 	}
 
 	public SignalMessage(Address address, Signal signal, String type) {
 		this.signal = signal;
 		this.address = address;
 		this.type = type;
-	}
-
-	public SignalMessage(Address address, Address otherAddress, Signal signal,
-			String type) {
-		this.signal = signal;
-		this.address = address;
-		this.type = type;
-		this.otherAddress = otherAddress;
 	}
 
 	public SignalMessage(Address address, Address otherAddress, String type) {
@@ -79,14 +71,6 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
-	public SignalMessage(Address address, Address otherAddress, String type,
-			List<Backup> backupList) {
-		this.backupList = backupList;
-		this.address = address;
-		this.otherAddress = otherAddress;
-		this.type = type;
-	}
-
 	public SignalMessage(Address address, String type) {
 		this.address = address;
 		this.type = type;
@@ -98,46 +82,13 @@ public class SignalMessage implements Serializable {
 		this.type = type;
 	}
 
-	public SignalMessage(Address address, Address otherAddress, Backup backup,
-			String type) {
-		this.address = address;
-		this.backup = backup;
-		this.type = type;
-		this.otherAddress = otherAddress;
-	}
-
-	public SignalMessage(String type, List<Backup> backupList) {
-		this.backupList = backupList;
-		this.type = type;
-	}
-
-	public SignalMessage(Address address, Signal signal, int id, String type) {
-		this.signal = signal;
-		this.address = address;
-		this.type = type;
-		this.requestId = id;
-	}
-
 	public SignalMessage(Address address, Result result, int id, String type,
 			long timestamp) {
 		this.result = result;
 		this.address = address;
 		this.type = type;
 		this.timestamp = timestamp;
-		this.requestId = id;
-	}
-
-	public SignalMessage(List<Signal> signals, String type) {
-		this.signals = signals;
-		this.type = type;
-	}
-
-	public SignalMessage(Address address, Address otherAddress,
-			List<Signal> signals, String type) {
-		this.type = type;
-		this.signals = signals;
-		this.address = address;
-		this.otherAddress = otherAddress;
+		this.number = id;
 	}
 
 	public SignalMessage(Address address, List<Signal> signals, String type) {
@@ -166,8 +117,8 @@ public class SignalMessage implements Serializable {
 		return result;
 	}
 
-	public int getRequestId() {
-		return requestId;
+	public int getNumber() {
+		return number;
 	}
 
 	public Backup getBackup() {

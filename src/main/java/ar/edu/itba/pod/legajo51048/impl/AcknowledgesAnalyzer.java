@@ -14,7 +14,6 @@ public class AcknowledgesAnalyzer extends Thread {
 	private AtomicBoolean finishedAnalyzer = new AtomicBoolean(false);
 	private final BlockingQueue<SignalMessage> acknowledges;
 	private final BlockingQueue<Signal> sendSignals;
-	private final MultithreadedSignalProcessor processor;
 	private final BlockingQueue<Backup> sendBackups;
 	private final ConcurrentMap<Integer, FindRequest> requests;
 	private Connection connection;
@@ -25,14 +24,12 @@ public class AcknowledgesAnalyzer extends Thread {
 
 	public AcknowledgesAnalyzer(BlockingQueue<SignalMessage> acknowledges,
 			BlockingQueue<Signal> sendSignals,
-			MultithreadedSignalProcessor processor,
 			BlockingQueue<Backup> sendBackups,
 			ConcurrentMap<Integer, FindRequest> requests,
 			Connection connection, Semaphore semaphore1, Semaphore semaphore2,
 			Semaphore semaphore3) {
 		this.acknowledges = acknowledges;
 		this.sendSignals = sendSignals;
-		this.processor = processor;
 		this.requests = requests;
 		this.sendBackups = sendBackups;
 		this.connection = connection;
@@ -54,10 +51,8 @@ public class AcknowledgesAnalyzer extends Thread {
 				acknowledge = acknowledges.take();
 
 				switch (acknowledge.getType()) {
-				
-				case SignalMessageType.REQUEST_NOTIFICATION:
-					FindRequest request = requests.get(acknowledge
-							.getRequestId());
+				case SignalMessageType.FIND_SIMILAR_RESULT:
+					FindRequest request = requests.get(acknowledge.getNumber());
 					request.addResult(acknowledge.getResult(),
 							acknowledge.getAddress(),
 							acknowledge.getTimestamp());
@@ -79,16 +74,6 @@ public class AcknowledgesAnalyzer extends Thread {
 					connection.broadcastMessage(new SignalMessage(signalOwner,
 							acknowledge.getSignals(),
 							SignalMessageType.CHANGE_SIGNALS_OWNER));
-					break;
-
-				case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
-					for (Signal s : acknowledge.getSignals()) {
-						if (!sendSignals.add(s)) {
-							logger.warn("esto no deberia pasar "
-									+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
-						}
-						processor.distributeBackup(acknowledge.getAddress(), s);
-					}
 					break;
 
 				case SignalMessageType.ADD_BACKUP_ACK:

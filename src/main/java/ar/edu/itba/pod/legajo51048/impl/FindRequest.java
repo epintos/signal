@@ -35,13 +35,17 @@ public class FindRequest {
 	// Request id
 	private int requestId;
 
+	// Request original timestamp
 	private long timestamp;
 
+	// If true, then a problem happened so the principal node must recalculate
+	// his results
 	private boolean retry = false;
 
 	public FindRequest(int requestId, Signal signal, List<Address> addresses,
 			Semaphore semaphore, long timestamp) {
 		this.addresses = addresses;
+
 		// Remove the principal node
 		this.qty = new AtomicInteger(addresses.size() - 1);
 		this.requestId = requestId;
@@ -60,9 +64,6 @@ public class FindRequest {
 	}
 
 	public List<Result> getResults() {
-//		if (qty.get() != 0) {
-//			System.out.println("no deberia pasar, qty!=0");
-//		}
 		return results;
 	}
 
@@ -70,25 +71,27 @@ public class FindRequest {
 		return qty.get();
 	}
 
-	public synchronized void addResult(Result result, Address address, long timestamp) {
-		if(timestamp != this.timestamp){
+	public synchronized void addResult(Result result, Address address,
+			long timestamp) {
+		if (timestamp != this.timestamp) {
 			System.out.println("llega viejo");
 			return;
 		}
 		this.results.add(result);
 		this.addresses.remove(address);
-//		this.qty.decrementAndGet();
 		this.semaphore.release();
 		System.out.println("agrego resultado de " + address);
 	}
 
-	public synchronized void restart(List<Address> newAddresses, long timestamp) {
-		this.semaphore.drainPermits();
-		this.results.clear();
-		this.retry = true;
-		this.addresses = newAddresses;
-		this.qty.set(addresses.size() - 1);
-		this.timestamp = timestamp;
+	public void restart(List<Address> newAddresses, long timestamp) {
+		synchronized (this) {
+			this.semaphore.drainPermits();
+			this.results.clear();
+			this.retry = true;
+			this.addresses = newAddresses;
+			this.qty.set(addresses.size() - 1);
+			this.timestamp = timestamp;
+		}
 	}
 
 	public Signal getSignal() {

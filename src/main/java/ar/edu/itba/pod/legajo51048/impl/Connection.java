@@ -44,7 +44,7 @@ public class Connection extends ReceiverAdapter {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
 			// Notifiy all that i'm ready to receive orders.
-			broadcastMessage(new SignalMessage(getMyAddress(),
+			broadcastMessage(new SignalMessage(getMyAddress(), getMembersQty(),
 					SignalMessageType.IM_READY));
 			logger.info("Node connected to '" + clusterName
 					+ "'. Ready to receive");
@@ -100,18 +100,14 @@ public class Connection extends ReceiverAdapter {
 		Address myAddress = getMyAddress();
 		switch (((SignalMessage) msg.getObject()).getType()) {
 		case SignalMessageType.ADD_SIGNAL:
-			processor.addSignal(msg.getSrc(), message.getSignal());
+			processor.addSignal(message.getAddress(), message.getSignal());
 			break;
 		case SignalMessageType.ADD_SIGNALS:
 			processor.addSignals(msg.getSrc(), message.getSignals(),
 					SignalMessageType.ADD_SIGNALS);
 			break;
-		case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP:
-			processor.addSignals(msg.getSrc(), message.getSignals(),
-					SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP);
-			break;
 		case SignalMessageType.ADD_BACK_UP:
-			processor.addBackup(msg.getSrc(), message.getBackup());
+			processor.addBackup(message.getAddress(), message.getBackup());
 			break;
 		case SignalMessageType.ADD_BACK_UPS:
 			processor.addBackups(msg.getSrc(), message.getBackupList());
@@ -122,10 +118,8 @@ public class Connection extends ReceiverAdapter {
 						message.getAddress(), message.getSignals());
 			}
 			break;
-		case SignalMessageType.REQUEST_NOTIFICATION:
-			if (!myAddress.equals(msg.getSrc())) {
-				processor.addAcknowledge(message);
-			}
+		case SignalMessageType.FIND_SIMILAR_RESULT:
+			processor.addAcknowledge(message);
 			break;
 		case SignalMessageType.FIND_SIMILAR:
 			if (!myAddress.equals(msg.getSrc())) {
@@ -135,7 +129,8 @@ public class Connection extends ReceiverAdapter {
 		case SignalMessageType.IM_READY:
 			if (!message.getAddress().equals(myAddress)) {
 				processor.addNotification(new SignalMessage(message
-						.getAddress(),getMembersQty(), SignalMessageType.NEW_NODE));
+						.getAddress(), message.getNumber(),
+						SignalMessageType.NEW_NODE));
 			}
 			break;
 
@@ -165,9 +160,6 @@ public class Connection extends ReceiverAdapter {
 			processor.addAcknowledge(message);
 			break;
 		case SignalMessageType.ADD_SIGNALS_ACK:
-			processor.addAcknowledge(message);
-			break;
-		case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
 			processor.addAcknowledge(message);
 			break;
 		/** For notifications **/
