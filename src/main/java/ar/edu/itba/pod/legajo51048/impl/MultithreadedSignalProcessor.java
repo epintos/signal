@@ -181,6 +181,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	@Override
 	public Result findSimilarTo(Signal signal) throws RemoteException {
 
+		while (connection != null && connection.getMembersQty() != 1
+				&& degradedMode.get())
+			;
+
 		receivedSignals.incrementAndGet();
 		if (signal == null) {
 			throw new IllegalArgumentException("Signal cannot be null");
@@ -317,9 +321,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 						connection.getMyAddress(), signal,
 						SignalMessageType.ADD_SIGNAL));
 				// Wait for ack
-				while (!sendSignals.isEmpty()) {
-					// System.out
-					// .println("waiting sendSignals ack en distributeNewSignal");
+				try {
+					sendSignals.take();
+				} catch (InterruptedException e) {
 				}
 			}
 			distributeBackup(futureOwner, signal);
@@ -365,13 +369,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				connection.sendMessageTo(futureBackupOwner, new SignalMessage(
 						connection.getMyAddress(), backup,
 						SignalMessageType.ADD_BACK_UP));
-				while (!this.sendBackups.isEmpty()) {
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-					// System.out.println("Waiting for distributeBackup ack");
+				try {
+					this.sendBackups.take();
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
 				}
 			}
 		} else {
@@ -418,15 +419,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			}
 		}
 
-		while (!this.sendSignals.isEmpty()) {
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			// System.out.println("waiting sendSignals ack distributeSignals");
+		try {
+			this.sendSignals.take();
+		} catch (InterruptedException e) {
 		}
+		// System.out.println("waiting sendSignals ack distributeSignals");
 
 		// Wait for sent signals ack
 		if (membersQty == 2) {
@@ -479,15 +476,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 								new SignalMessage(connection.getMyAddress(),
 										distSignals,
 										SignalMessageType.ADD_SIGNALS));
-						while (!this.sendSignals.isEmpty()) {
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							}
-							// System.out
-							// .println("waiting sendSignals ack distributeSignals 2");
+						try {
+							this.sendSignals.take();
+						} catch (InterruptedException e) {
+							e.printStackTrace();
 						}
 					}
 					distributeBackups(futureOwner,
@@ -548,14 +540,9 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 							SignalMessageType.ADD_BACK_UPS, backupList));
 				}
 			}
-			while (!this.sendBackups.isEmpty()) {
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				// System.out.println("waiting sendBackups ack distributeBackups");
+			try {
+				this.sendBackups.take();
+			} catch (InterruptedException e) {
 			}
 		} else {
 			this.backups.putAll(signalOwner, signalsToBackup);

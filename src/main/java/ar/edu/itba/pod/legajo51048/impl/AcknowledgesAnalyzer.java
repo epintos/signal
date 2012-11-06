@@ -63,14 +63,14 @@ public class AcknowledgesAnalyzer extends Thread {
 							acknowledge.getTimestamp());
 					break;
 				case SignalMessageType.ADD_SIGNAL_ACK:
-					if (!sendSignals.remove(acknowledge.getSignal())) {
+					if (!sendSignals.add(acknowledge.getSignal())) {
 						logger.warn("esto no deberia pasar "
 								+ SignalMessageType.ADD_SIGNAL_ACK);
 					}
 					break;
 
 				case SignalMessageType.ADD_SIGNALS_ACK:
-					if (!sendSignals.removeAll(acknowledge.getSignals())) {
+					if (!sendSignals.addAll(acknowledge.getSignals())) {
 						logger.warn("esto no deberia pasar "
 								+ SignalMessageType.ADD_SIGNALS_ACK);
 					}
@@ -83,7 +83,7 @@ public class AcknowledgesAnalyzer extends Thread {
 
 				case SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK:
 					for (Signal s : acknowledge.getSignals()) {
-						if (!sendSignals.remove(s)) {
+						if (!sendSignals.add(s)) {
 							logger.warn("esto no deberia pasar "
 									+ SignalMessageType.GENERATE_NEW_SIGNALS_FROM_BACKUP_ACK);
 						}
@@ -92,7 +92,7 @@ public class AcknowledgesAnalyzer extends Thread {
 					break;
 
 				case SignalMessageType.ADD_BACKUP_ACK:
-					if (!sendBackups.remove(acknowledge.getBackup())) {
+					if (!sendBackups.add(acknowledge.getBackup())) {
 						logger.warn("no deberia pasar "
 								+ SignalMessageType.ADD_BACKUP_ACK);
 					}
@@ -100,7 +100,7 @@ public class AcknowledgesAnalyzer extends Thread {
 					break;
 
 				case SignalMessageType.ADD_BACKUPS_ACK:
-					if (!sendBackups.removeAll(acknowledge.getBackupList())) {
+					if (!sendBackups.addAll(acknowledge.getBackupList())) {
 						logger.warn("no deberia pasar "
 								+ SignalMessageType.ADD_BACKUPS_ACK);
 					}

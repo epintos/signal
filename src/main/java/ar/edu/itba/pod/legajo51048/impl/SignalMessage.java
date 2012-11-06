@@ -47,6 +47,12 @@ public class SignalMessage implements Serializable {
 		this.timestamp = timestamp;
 	}
 
+	public SignalMessage(Address address, int requestId, String type) {
+		this.type = type;
+		this.address = address;
+		this.requestId = requestId;
+	}
+
 	public SignalMessage(Address address, Signal signal, String type) {
 		this.signal = signal;
 		this.address = address;

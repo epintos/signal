@@ -61,6 +61,20 @@ public class NotificationsAnalyzer extends Thread {
 
 	@Override
 	public void run() {
+		int qty = connection.getMembersQty() - 1;
+		try {
+			while (!waitNewDistributionSemaphore.tryAcquire(qty, 5000,
+					TimeUnit.MILLISECONDS)) {
+				logger.info("New node waiting for "
+						+ waitNewDistributionSemaphore.availablePermits()
+						+ " nodes to finish new node distribution ");
+			}
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		waitNewDistributionSemaphore.drainPermits();
+		logger.info("New node ready");
 		while (!finishedAnalyzer.get()) {
 			try {
 				SignalMessage notification;
@@ -76,6 +90,7 @@ public class NotificationsAnalyzer extends Thread {
 					break;
 				case SignalMessageType.NEW_NODE:
 					processor.setDegradedMode(true);
+					qty = connection.getMembersQty() - 2;
 					logger.info("New node detected. Starting distribution...");
 					processor.distributeSignals(notification.getAddress());
 					logger.info("Finished new node distribution.");
@@ -84,8 +99,8 @@ public class NotificationsAnalyzer extends Thread {
 									connection.getMyAddress(),
 									notification.getAddress(),
 									SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION));
-					while (!waitNewDistributionSemaphore.tryAcquire(
-							connection.getMembersQty() - 2, 5000,
+					System.out.println("qty: " + qty);
+					while (!waitNewDistributionSemaphore.tryAcquire(qty, 5000,
 							TimeUnit.MILLISECONDS)) {
 						logger.info("Waiting for "
 								+ waitNewDistributionSemaphore

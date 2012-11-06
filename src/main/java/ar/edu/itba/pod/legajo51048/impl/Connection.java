@@ -135,7 +135,7 @@ public class Connection extends ReceiverAdapter {
 		case SignalMessageType.IM_READY:
 			if (!message.getAddress().equals(myAddress)) {
 				processor.addNotification(new SignalMessage(message
-						.getAddress(), SignalMessageType.NEW_NODE));
+						.getAddress(),getMembersQty(), SignalMessageType.NEW_NODE));
 			}
 			break;
 
@@ -151,8 +151,7 @@ public class Connection extends ReceiverAdapter {
 			}
 			break;
 		case SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION:
-			if (!msg.getSrc().equals(getMyAddress())
-					&& !message.getOtherAddress().equals(getMyAddress())) {
+			if (!msg.getSrc().equals(getMyAddress())) {
 				processor.addAcknowledge(message);
 			}
 			break;
