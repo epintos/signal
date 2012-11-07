@@ -72,7 +72,6 @@ public class AcknowledgesAnalyzer extends Thread {
 					break;
 
 				case SignalMessageType.ADD_SIGNAL_ACK:
-					sendSignals.add(acknowledge.getSignal());
 					break;
 
 				case SignalMessageType.ADD_SIGNALS_ACK:
@@ -86,7 +85,6 @@ public class AcknowledgesAnalyzer extends Thread {
 					break;
 
 				case SignalMessageType.ADD_BACKUP_ACK:
-					sendBackups.add(acknowledge.getBackup());
 					break;
 
 				case SignalMessageType.ADD_BACKUPS_ACK:

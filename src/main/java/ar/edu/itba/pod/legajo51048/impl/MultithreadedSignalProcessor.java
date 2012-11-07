@@ -316,14 +316,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			} else {
 				connection.sendMessageTo(futureOwner, new SignalMessage(
 						getMyAddress(), signal, SignalMessageType.ADD_SIGNAL));
-				try {
-					// Waits for ACK
-					sendSignals.take();
-				} catch (InterruptedException e) {
-				}
-				if (!sendSignals.isEmpty()) {
-					System.out.println("no deberia pasar newSignal");
-				}
 			}
 			distributeBackup(futureOwner, signal);
 		} else {
@@ -358,14 +350,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			Backup backup = new Backup(signalOwner, signal);
 			connection.sendMessageTo(futureBackupOwner, new SignalMessage(
 					getMyAddress(), backup, SignalMessageType.ADD_BACK_UP));
-			try {
-				// Wait for ACK
-				this.sendBackups.take();
-			} catch (InterruptedException e) {
-			}
-			if (!sendBackups.isEmpty()) {
-				System.out.println("no deberia pasar, distributeBackups");
-			}
 		}
 	}
 
