@@ -160,7 +160,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public NodeStats getStats() throws RemoteException {
-		return new NodeStats("cluster " + connection.getClusterName(),
+		return new NodeStats(connected() ? "cluster "
+				+ connection.getClusterName() : "standalone",
 				receivedSignals.longValue(), signals.size(), backups.size(),
 				degradedMode.get());
 	}
@@ -371,7 +372,10 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	/**
 	 * Distribute signals to a node. The quantity of signals distributed is
 	 * calculated according to the quantity of members in the cluster and the
-	 * message is divided in chunks of size CHUNK_SIZE.
+	 * message is divided in chunks of size CHUNK_SIZE. Backups are distributed
+	 * only if the quantity of members is 2. If the quantity of members is
+	 * greater than 2, then no backups will be distributed, owners will be
+	 * changed only.
 	 * 
 	 * @param to
 	 *            Destination node
