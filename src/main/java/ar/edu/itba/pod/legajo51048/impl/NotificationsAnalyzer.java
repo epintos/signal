@@ -81,14 +81,14 @@ public class NotificationsAnalyzer extends Thread {
 		try {
 			while (!waitNewDistributionSemaphore.tryAcquire(qty, 3000,
 					TimeUnit.MILLISECONDS)) {
-				logger.info("New node waiting for "
+				logger.debug("New node waiting for "
 						+ waitNewDistributionSemaphore.availablePermits()
 						+ " nodes to finish new node distribution ");
 			}
 		} catch (InterruptedException e1) {
 		}
 		waitNewDistributionSemaphore.drainPermits();
-		logger.info("New node ready");
+		logger.debug("New node ready");
 		processor.setDegradedMode(false);
 
 		while (!finishedAnalyzer.get()) {
@@ -110,9 +110,9 @@ public class NotificationsAnalyzer extends Thread {
 
 					// Don't wait for this node and the new one acks
 					qty = this.members.size() - 2;
-					logger.info("New node detected. Starting distribution...");
+					logger.debug("New node detected. Starting distribution...");
 					processor.distributeSignals(notification.getAddress());
-					logger.info("Finished new node distribution.");
+					logger.debug("Finished new node distribution.");
 					for (Address addr : this.members) {
 						connection
 								.sendMessageTo(
@@ -123,12 +123,12 @@ public class NotificationsAnalyzer extends Thread {
 					}
 					while (!waitNewDistributionSemaphore.tryAcquire(qty, 3000,
 							TimeUnit.MILLISECONDS)) {
-						logger.info("Waiting for "
+						logger.debug("Waiting for "
 								+ waitNewDistributionSemaphore
 										.availablePermits()
 								+ " nodes to finish new node distribution ");
 					}
-					logger.info("System recovered from new node");
+					logger.debug("System recovered from new node");
 					processor.setDegradedMode(false);
 					break;
 
@@ -137,7 +137,7 @@ public class NotificationsAnalyzer extends Thread {
 					Address fallenNodeAddress = notification.getAddress();
 					this.members.remove(fallenNodeAddress);
 					qty = members.size();
-					logger.info("Fallen " + fallenNodeAddress
+					logger.debug("Fallen " + fallenNodeAddress
 							+ " node detected. Preparing distribution...");
 
 					BlockingQueue<Signal> toDistribute = new LinkedBlockingDeque<Signal>();
@@ -153,15 +153,15 @@ public class NotificationsAnalyzer extends Thread {
 
 					while (!waitReadyForFallenDistributionSemaphore.tryAcquire(
 							qty - 1, 5000, TimeUnit.MILLISECONDS)) {
-						logger.info("Waiting for "
+						logger.debug("Waiting for "
 								+ waitReadyForFallenDistributionSemaphore
 										.availablePermits()
 								+ " nodes to be ready for fallen node distribution");
 					}
-					logger.info("System ready for fallen node distribution. Starting...");
+					logger.debug("System ready for fallen node distribution. Starting...");
 					waitReadyForFallenDistributionSemaphore.drainPermits();
 					processor.distributeSignals(toDistribute);
-					logger.info("Finished fallen node distribution");
+					logger.debug("Finished fallen node distribution");
 
 					// Tell everyone that this node distribution finished.
 					connection
@@ -172,13 +172,13 @@ public class NotificationsAnalyzer extends Thread {
 					// Wait for all the nodes to distribute
 					while (!waitFallenDistributionSemaphore.tryAcquire(qty - 1,
 							3000, TimeUnit.MILLISECONDS)) {
-						logger.info("Waiting for "
+						logger.debug("Waiting for "
 								+ waitFallenDistributionSemaphore
 										.availablePermits()
 								+ " nodes to finish fallen node redistribution");
 					}
 					waitFallenDistributionSemaphore.drainPermits();
-					logger.info("System recovered from node fallen");
+					logger.debug("System recovered from node fallen");
 
 					// Find requests that had aborted cause a node fell.
 					// Timestamp is added because old results may arrive, so

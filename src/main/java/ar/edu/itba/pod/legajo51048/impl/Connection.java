@@ -47,7 +47,7 @@ public class Connection extends ReceiverAdapter {
 			// Notifiy all that i'm ready to receive orders.
 			broadcastMessage(new SignalMessage(getMyAddress(),
 					SignalMessageType.IM_READY));
-			logger.info("Node connected to '" + clusterName);
+			logger.debug("Node connected to '" + clusterName);
 			users.addAll(getMembers());
 		} catch (Exception e) {
 		}

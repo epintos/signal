@@ -111,7 +111,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			throw new IllegalStateException(
 					"Can't join a cluster because there are signals already stored");
 		}
-		logger.info("Joining cluster " + clusterName + " ...");
+		logger.debug("Joining cluster " + clusterName + " ...");
 		this.connection = new Connection(clusterName, this);
 		this.members = new LinkedBlockingQueue<Address>(connection.getMembers());
 		this.initializeAnalyzers();
@@ -120,7 +120,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public void exit() throws RemoteException {
-		logger.info("Starting exit...");
+		logger.debug("Starting exit...");
 		if (connected()) {
 			connection.disconnect();
 			if (getMembersQty() == 1) {
@@ -218,7 +218,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			try {
 				while (!semaphore.tryAcquire(request.getQty(), 1000,
 						TimeUnit.MILLISECONDS)) {
-					logger.info("Waiting for results of "
+					logger.debug("Waiting for results of "
 							+ semaphore.availablePermits() + " nodes");
 				}
 			} catch (InterruptedException e) {
@@ -258,11 +258,11 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	protected void findMySimilars(Address from, Signal signal, int id,
 			long timestamp) {
-		logger.info(getMyAddress() + " findingSimilars...");
+		logger.debug(getMyAddress() + " findingSimilars...");
 		Result result = findSimilarToAux(signal);
 		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
 				result, id, SignalMessageType.FIND_SIMILAR_RESULT, timestamp));
-		logger.info(getMyAddress() + " finishedFindingSimilars....");
+		logger.debug(getMyAddress() + " finishedFindingSimilars....");
 	}
 
 	/**

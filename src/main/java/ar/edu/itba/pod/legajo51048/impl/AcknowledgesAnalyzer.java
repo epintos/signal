@@ -5,7 +5,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.log4j.Logger;
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
@@ -34,9 +33,8 @@ public class AcknowledgesAnalyzer extends Thread {
 	// Semaphore to wait for everyone to finish distributing when a new node
 	// joins
 	private final Semaphore waitNewDistributionSemaphore;
-	
+
 	private Connection connection;
-	private Logger logger;
 
 	public AcknowledgesAnalyzer(BlockingQueue<SignalMessage> acknowledges,
 			BlockingQueue<Signal> sendSignals,
@@ -52,7 +50,6 @@ public class AcknowledgesAnalyzer extends Thread {
 		this.waitFallenDistributionSemaphore = semaphore1;
 		this.waitReadyForFallenDistributionSemaphore = semaphore2;
 		this.waitNewDistributionSemaphore = semaphore3;
-		this.logger = Logger.getLogger("AcknowledgesAnalyzer");
 	}
 
 	public void finish() {
@@ -63,8 +60,7 @@ public class AcknowledgesAnalyzer extends Thread {
 	public void run() {
 		while (!finishedAnalyzer.get()) {
 			try {
-				SignalMessage acknowledge;
-				acknowledge = acknowledges.take();
+				SignalMessage acknowledge = acknowledges.take();
 
 				switch (acknowledge.getType()) {
 				case SignalMessageType.FIND_SIMILAR_RESULT:
@@ -74,18 +70,13 @@ public class AcknowledgesAnalyzer extends Thread {
 							acknowledge.getAddress(),
 							acknowledge.getTimestamp());
 					break;
+
 				case SignalMessageType.ADD_SIGNAL_ACK:
-					if (!sendSignals.add(acknowledge.getSignal())) {
-						logger.warn("esto no deberia pasar "
-								+ SignalMessageType.ADD_SIGNAL_ACK);
-					}
+					sendSignals.add(acknowledge.getSignal());
 					break;
 
 				case SignalMessageType.ADD_SIGNALS_ACK:
-					if (!sendSignals.addAll(acknowledge.getSignals())) {
-						logger.warn("esto no deberia pasar "
-								+ SignalMessageType.ADD_SIGNALS_ACK);
-					}
+					sendSignals.addAll(acknowledge.getSignals());
 
 					// Tell everyone that some backup owners have changed
 					Address signalOwner = acknowledge.getAddress();
@@ -95,18 +86,11 @@ public class AcknowledgesAnalyzer extends Thread {
 					break;
 
 				case SignalMessageType.ADD_BACKUP_ACK:
-					if (!sendBackups.add(acknowledge.getBackup())) {
-						logger.warn("no deberia pasar "
-								+ SignalMessageType.ADD_BACKUP_ACK);
-					}
-
+					sendBackups.add(acknowledge.getBackup());
 					break;
 
 				case SignalMessageType.ADD_BACKUPS_ACK:
-					if (!sendBackups.addAll(acknowledge.getBackupList())) {
-						logger.warn("no deberia pasar "
-								+ SignalMessageType.ADD_BACKUPS_ACK);
-					}
+					sendBackups.addAll(acknowledge.getBackupList());
 					break;
 
 				case SignalMessageType.FINISHED_FALLEN_NODE_REDISTRIBUTION:
@@ -123,5 +107,4 @@ public class AcknowledgesAnalyzer extends Thread {
 			}
 		}
 	}
-
 }

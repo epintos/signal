@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
 
+import org.apache.log4j.Logger;
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Result;
@@ -14,7 +14,7 @@ import ar.edu.itba.pod.api.Signal;
 /**
  * Class containing a request for finding similar signals.
  * 
- * @author egpintos17
+ * @author Esteban G. Pintos
  * 
  */
 public class FindRequest {
@@ -72,13 +72,12 @@ public class FindRequest {
 	 */
 	public void addResult(Result result, Address address, long timestamp) {
 		if (timestamp != this.timestamp) {
-			logger.warning("Old result arriving");
 			return;
 		}
 		this.results.add(result);
 		this.addresses.remove(address);
 		this.semaphore.release();
-		logger.info("Adding result of " + address);
+		logger.debug("Adding result of " + address);
 	}
 
 	/**
