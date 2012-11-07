@@ -1,4 +1,4 @@
-package ar.edu.itba.pod.legajo51048.impl;
+package ar.edu.itba.pod.legajo51048;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -12,6 +12,10 @@ import org.jgroups.JChannel;
 import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
+
+import ar.edu.itba.pod.legajo51048.impl.MultithreadedSignalProcessor;
+import ar.edu.itba.pod.legajo51048.messages.SignalMessage;
+import ar.edu.itba.pod.legajo51048.messages.SignalMessageType;
 
 /**
  * Class that represents a channel connection with Jgroup.

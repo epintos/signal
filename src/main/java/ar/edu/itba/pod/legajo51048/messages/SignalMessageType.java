@@ -1,4 +1,4 @@
-package ar.edu.itba.pod.legajo51048.impl;
+package ar.edu.itba.pod.legajo51048.messages;
 
 /**
  * Interface containing all type of messages that can be sent between nodes.

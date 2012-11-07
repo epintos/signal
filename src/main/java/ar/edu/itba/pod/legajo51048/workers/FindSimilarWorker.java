@@ -1,4 +1,4 @@
-package ar.edu.itba.pod.legajo51048.impl;
+package ar.edu.itba.pod.legajo51048.workers;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;

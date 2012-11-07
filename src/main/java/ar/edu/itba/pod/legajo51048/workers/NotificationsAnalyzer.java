@@ -1,4 +1,4 @@
-package ar.edu.itba.pod.legajo51048.impl;
+package ar.edu.itba.pod.legajo51048.workers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +13,11 @@ import org.apache.log4j.Logger;
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
+import ar.edu.itba.pod.legajo51048.Connection;
+import ar.edu.itba.pod.legajo51048.impl.MultithreadedSignalProcessor;
+import ar.edu.itba.pod.legajo51048.messages.FindRequest;
+import ar.edu.itba.pod.legajo51048.messages.SignalMessage;
+import ar.edu.itba.pod.legajo51048.messages.SignalMessageType;
 
 import com.google.common.collect.Multimap;
 

@@ -1,4 +1,4 @@
-package ar.edu.itba.pod.legajo51048.impl;
+package ar.edu.itba.pod.legajo51048.messages;
 
 import java.util.ArrayList;
 import java.util.List;

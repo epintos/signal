@@ -27,6 +27,14 @@ import ar.edu.itba.pod.api.Result.Item;
 import ar.edu.itba.pod.api.SPNode;
 import ar.edu.itba.pod.api.Signal;
 import ar.edu.itba.pod.api.SignalProcessor;
+import ar.edu.itba.pod.legajo51048.Connection;
+import ar.edu.itba.pod.legajo51048.messages.Backup;
+import ar.edu.itba.pod.legajo51048.messages.FindRequest;
+import ar.edu.itba.pod.legajo51048.messages.SignalMessage;
+import ar.edu.itba.pod.legajo51048.messages.SignalMessageType;
+import ar.edu.itba.pod.legajo51048.workers.AcknowledgesAnalyzer;
+import ar.edu.itba.pod.legajo51048.workers.FindSimilarWorker;
+import ar.edu.itba.pod.legajo51048.workers.NotificationsAnalyzer;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
@@ -107,7 +115,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			throw new IllegalStateException("Already in cluster "
 					+ connection.getClusterName());
 		}
-		if (!signals.isEmpty()) {
+		if (!this.signals.isEmpty()) {
 			throw new IllegalStateException(
 					"Can't join a cluster because there are signals already stored");
 		}
@@ -163,7 +171,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		return new NodeStats(connected() ? "cluster "
 				+ connection.getClusterName() : "standalone",
 				receivedSignals.longValue(), signals.size(), backups.size(),
-				degradedMode.get());
+				connected() ? degradedMode.get() : true);
 	}
 
 	/**
@@ -257,7 +265,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 *            Timestamp of the resquest sent by from
 	 * @return Result of similar signals
 	 */
-	protected void findMySimilars(Address from, Signal signal, int id,
+	public void findMySimilars(Address from, Signal signal, int id,
 			long timestamp) {
 		logger.debug(getMyAddress() + " findingSimilars...");
 		Result result = findSimilarToAux(signal);
@@ -363,7 +371,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param to
 	 *            Destination node
 	 */
-	protected void distributeSignals(Address to) {
+	public void distributeSignals(Address to) {
 		int sizeToDistribute = 0;
 		BlockingQueue<Signal> copy = null;
 		int membersQty = getMembersQty();
@@ -413,7 +421,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param newSignals
 	 *            Signals/backups being send
 	 */
-	protected void distributeSignals(BlockingQueue<Signal> newSignals) {
+	public void distributeSignals(BlockingQueue<Signal> newSignals) {
 		int sizeToDistribute = 0;
 		if (newSignals.isEmpty()) {
 			return;
@@ -540,7 +548,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param signals
 	 *            Signals which are know backed up by a new owner.
 	 */
-	protected void changeSignalsOwner(Address oldOwner, Address newOwner,
+	public void changeSignalsOwner(Address oldOwner, Address newOwner,
 			List<Signal> signals) {
 		synchronized (backups) {
 			for (Signal signal : signals) {
@@ -562,7 +570,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param signal
 	 *            Signal to add
 	 */
-	protected void addSignal(Signal signal) {
+	public void addSignal(Signal signal) {
 		this.signals.add(signal);
 	}
 
@@ -574,7 +582,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param newSignals
 	 *            New signals to add
 	 */
-	protected void addSignals(Address from, List<Signal> newSignals) {
+	public void addSignals(Address from, List<Signal> newSignals) {
 		this.signals.addAll(newSignals);
 		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
 				newSignals, SignalMessageType.ADD_SIGNALS_ACK));
@@ -591,7 +599,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param backup
 	 *            New backup
 	 */
-	protected void addBackup(Backup backup) {
+	public void addBackup(Backup backup) {
 		this.backups.put(backup.getAddress(), backup.getSignal());
 	}
 
@@ -603,7 +611,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param backupList
 	 *            New backup list
 	 */
-	protected void addBackups(Address from, List<Backup> backupList) {
+	public void addBackups(Address from, List<Backup> backupList) {
 		for (Backup backup : backupList) {
 			this.backups.put(backup.getAddress(), backup.getSignal());
 		}
@@ -617,7 +625,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param notification
 	 *            New notification
 	 */
-	protected void addNotification(SignalMessage notification) {
+	public void addNotification(SignalMessage notification) {
 		notifications.add(notification);
 	}
 
@@ -627,7 +635,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param acknowledge
 	 *            New acknowledge notification
 	 */
-	protected void addAcknowledge(SignalMessage acknowledge) {
+	public void addAcknowledge(SignalMessage acknowledge) {
 		acknowledges.add(acknowledge);
 	}
 
