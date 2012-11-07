@@ -111,7 +111,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	/******************** SPNODE IMPLEMENTATION ********************/
 	@Override
 	public void join(String clusterName) throws RemoteException {
-		if (connection != null && connection.getClusterName() != null) {
+		if (connection != null) {
 			throw new IllegalStateException("Already in cluster "
 					+ connection.getClusterName());
 		}
@@ -123,7 +123,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		this.connection = new Connection(clusterName, this);
 		this.members = new LinkedBlockingQueue<Address>(connection.getMembers());
 		this.initializeAnalyzers();
-
 	}
 
 	@Override
@@ -145,7 +144,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 		sendSignals.clear();
 		requests.clear();
 		receivedSignals = new AtomicInteger(0);
-
+		degradedMode.set(false);
 		try {
 			if (notificationsAnalyzer != null) {
 				notificationsAnalyzer.finish();
