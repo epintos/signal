@@ -75,14 +75,14 @@ public class SignalMessage implements Serializable {
 	}
 
 	/**
-	 * Used for sending a signal and it's ACK
+	 * Used for sending a signal.
 	 * 
 	 * @param address
-	 *            When sending a signals, this address corresponds to from node
+	 *            From address
 	 * @param signal
 	 *            Signal to add
 	 * @param type
-	 *            ADD_SIGNAL or ADD_SIGNAL_ACK
+	 *            ADD_SIGNAL
 	 */
 	public SignalMessage(Address address, Signal signal, String type) {
 		this.signal = signal;
@@ -120,14 +120,14 @@ public class SignalMessage implements Serializable {
 	}
 
 	/**
-	 * Used for distributing a backup
+	 * Used for distributing a backup.
 	 * 
 	 * @param address
-	 *            When sending a backup, this address corresponds to from node
+	 *            From address
 	 * @param backup
 	 *            Backup sent
 	 * @param type
-	 *            ADD_BACK_UP or ADD_BACKUP_ACK
+	 *            ADD_BACK_UP
 	 */
 	public SignalMessage(Address address, Backup backup, String type) {
 		this.address = address;

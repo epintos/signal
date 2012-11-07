@@ -23,7 +23,7 @@ public class Server {
 	public Server(int port,int threads) {
 		super();
 		BasicConfigurator.configure();
-        Logger.getRootLogger().setLevel(Level.DEBUG);
+        Logger.getRootLogger().setLevel(Level.INFO);
 		this.port = port;
 		this.threadsQty = threads;
 	}

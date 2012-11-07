@@ -117,13 +117,13 @@ public class Connection extends ReceiverAdapter {
 		Address myAddress = getMyAddress();
 		switch (((SignalMessage) msg.getObject()).getType()) {
 		case SignalMessageType.ADD_SIGNAL:
-			processor.addSignal(message.getAddress(), message.getSignal());
+			processor.addSignal(message.getSignal());
+			break;
+		case SignalMessageType.ADD_BACK_UP:
+			processor.addBackup(message.getBackup());
 			break;
 		case SignalMessageType.ADD_SIGNALS:
 			processor.addSignals(msg.getSrc(), message.getSignals());
-			break;
-		case SignalMessageType.ADD_BACK_UP:
-			processor.addBackup(message.getAddress(), message.getBackup());
 			break;
 		case SignalMessageType.ADD_BACK_UPS:
 			processor.addBackups(message.getAddress(), message.getBackupList());
@@ -154,13 +154,7 @@ public class Connection extends ReceiverAdapter {
 				processor.addAcknowledge(message);
 			}
 			break;
-		case SignalMessageType.ADD_BACKUP_ACK:
-			processor.addAcknowledge(message);
-			break;
 		case SignalMessageType.ADD_BACKUPS_ACK:
-			processor.addAcknowledge(message);
-			break;
-		case SignalMessageType.ADD_SIGNAL_ACK:
 			processor.addAcknowledge(message);
 			break;
 		case SignalMessageType.ADD_SIGNALS_ACK:

@@ -301,7 +301,7 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	/**
 	 * Distributes a signal to a random node and the backup to another. If there
 	 * is only 1 node (this one), the signal is added to this node and the
-	 * backup also (if it is connected to a cluster). This method is blocking.
+	 * backup also (if it is connected to a cluster).
 	 * 
 	 * @param Signal
 	 *            signal added
@@ -323,7 +323,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			if (connected()) {
 				this.backups.put(getMyAddress(), signal);
 			}
-
 		}
 	}
 
@@ -395,9 +394,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			for (int i = 0; i < sent; i++) {
 				this.sendSignals.take();
 			}
-			if (sendSignals.size() != 0) {
-				System.out.println("3-no deberia pasar, size!=0");
-			}
 		} catch (InterruptedException e) {
 		}
 
@@ -456,9 +452,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 					try {
 						for (int k = 0; k < toBackup.size(); k++) {
 							this.sendSignals.take();
-						}
-						if (sendSignals.size() != 0) {
-							System.out.println("2-no deberia pasar, size!=0");
 						}
 					} catch (InterruptedException e) {
 					}
@@ -527,9 +520,6 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 				for (int i = 0; i < sent; i++) {
 					this.sendBackups.take();
 				}
-				if (sendBackups.size() != 0) {
-					System.out.println("1-no deberia pasar, size!=0");
-				}
 			} catch (InterruptedException e) {
 			}
 		} else {
@@ -572,10 +562,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param signal
 	 *            Signal to add
 	 */
-	protected void addSignal(Address from, Signal signal) {
+	protected void addSignal(Signal signal) {
 		this.signals.add(signal);
-		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
-				signal, SignalMessageType.ADD_SIGNAL_ACK));
 	}
 
 	/**
@@ -603,10 +591,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 * @param backup
 	 *            New backup
 	 */
-	protected void addBackup(Address from, Backup backup) {
+	protected void addBackup(Backup backup) {
 		this.backups.put(backup.getAddress(), backup.getSignal());
-		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
-				backup, SignalMessageType.ADD_BACKUP_ACK));
 	}
 
 	/**

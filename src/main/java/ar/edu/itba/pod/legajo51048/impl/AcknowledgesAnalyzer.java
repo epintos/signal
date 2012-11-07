@@ -71,9 +71,6 @@ public class AcknowledgesAnalyzer extends Thread {
 							acknowledge.getTimestamp());
 					break;
 
-				case SignalMessageType.ADD_SIGNAL_ACK:
-					break;
-
 				case SignalMessageType.ADD_SIGNALS_ACK:
 					sendSignals.addAll(acknowledge.getSignals());
 
@@ -82,9 +79,6 @@ public class AcknowledgesAnalyzer extends Thread {
 					connection.broadcastMessage(new SignalMessage(signalOwner,
 							acknowledge.getSignals(),
 							SignalMessageType.CHANGE_SIGNALS_OWNER));
-					break;
-
-				case SignalMessageType.ADD_BACKUP_ACK:
 					break;
 
 				case SignalMessageType.ADD_BACKUPS_ACK:
