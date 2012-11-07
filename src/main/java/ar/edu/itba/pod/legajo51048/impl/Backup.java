@@ -1,14 +1,13 @@
 package ar.edu.itba.pod.legajo51048.impl;
 
 import java.io.Serializable;
-import java.util.List;
 
 import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
 
 /**
- * Class that contains the address of the owner of a signal/s and them.
+ * Class that contains a signal and the address of the owner.
  * 
  * @author Esteban G. Pintos
  * 
@@ -19,16 +18,10 @@ public class Backup implements Serializable {
 
 	private Address address;
 	private Signal signal;
-	private List<Signal> signals;
 
 	public Backup(Address address, Signal signal) {
 		this.address = address;
 		this.signal = signal;
-	}
-
-	public Backup(Address address, List<Signal> signals) {
-		this.address = address;
-		this.signals = signals;
 	}
 
 	public Address getAddress() {
@@ -39,17 +32,12 @@ public class Backup implements Serializable {
 		return signal;
 	}
 
-	public List<Signal> getSignals() {
-		return signals;
-	}
-
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((address == null) ? 0 : address.hashCode());
 		result = prime * result + ((signal == null) ? 0 : signal.hashCode());
-		result = prime * result + ((signals == null) ? 0 : signals.hashCode());
 		return result;
 	}
 
@@ -71,11 +59,6 @@ public class Backup implements Serializable {
 			if (other.signal != null)
 				return false;
 		} else if (!signal.equals(other.signal))
-			return false;
-		if (signals == null) {
-			if (other.signals != null)
-				return false;
-		} else if (!signals.equals(other.signals))
 			return false;
 		return true;
 	}

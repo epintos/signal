@@ -32,9 +32,19 @@ public class NotificationsAnalyzer extends Thread {
 	private final BlockingQueue<Signal> signals;
 	private final BlockingQueue<Address> members;
 	private Connection connection;
-	private Semaphore waitFallenDistributionSemaphore;
-	private Semaphore waitReadyForFallenDistributionSemaphore;
-	private Semaphore waitNewDistributionSemaphore;
+
+	// Semaphore to wait for everyone to be ready for distributing when a node
+	// fell
+	private final Semaphore waitReadyForFallenDistributionSemaphore;
+
+	// Semaphore to wait for everyone to finish distributing when a node
+	// fell
+	private final Semaphore waitFallenDistributionSemaphore;
+
+	// Semaphore to wait for everyone to finish distributing when a new node
+	// joins
+	private final Semaphore waitNewDistributionSemaphore;
+
 	private Logger logger;
 
 	public NotificationsAnalyzer(BlockingQueue<Signal> signals,
@@ -65,6 +75,8 @@ public class NotificationsAnalyzer extends Thread {
 	@Override
 	public void run() {
 		processor.setDegradedMode(true);
+
+		// Don't wait for this node ack
 		int qty = members.size() - 1;
 		try {
 			while (!waitNewDistributionSemaphore.tryAcquire(qty, 3000,
@@ -78,6 +90,7 @@ public class NotificationsAnalyzer extends Thread {
 		waitNewDistributionSemaphore.drainPermits();
 		logger.info("New node ready");
 		processor.setDegradedMode(false);
+
 		while (!finishedAnalyzer.get()) {
 			try {
 				SignalMessage notification;
@@ -94,6 +107,8 @@ public class NotificationsAnalyzer extends Thread {
 				case SignalMessageType.NEW_NODE:
 					processor.setDegradedMode(true);
 					this.members.put(notification.getAddress());
+
+					// Don't wait for this node and the new one acks
 					qty = this.members.size() - 2;
 					logger.info("New node detected. Starting distribution...");
 					processor.distributeSignals(notification.getAddress());
@@ -104,7 +119,6 @@ public class NotificationsAnalyzer extends Thread {
 										addr,
 										new SignalMessage(
 												connection.getMyAddress(),
-												notification.getAddress(),
 												SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION));
 					}
 					while (!waitNewDistributionSemaphore.tryAcquire(qty, 3000,
@@ -125,9 +139,11 @@ public class NotificationsAnalyzer extends Thread {
 					qty = members.size();
 					logger.info("Fallen " + fallenNodeAddress
 							+ " node detected. Preparing distribution...");
+
 					BlockingQueue<Signal> toDistribute = new LinkedBlockingDeque<Signal>();
 					toDistribute.addAll(this.signals);
 					this.signals.clear();
+
 					toDistribute.addAll(backups.get(fallenNodeAddress));
 					this.backups.clear();
 					connection
@@ -136,8 +152,7 @@ public class NotificationsAnalyzer extends Thread {
 									SignalMessageType.READY_FOR_FALLEN_NODE_REDISTRIBUTION));
 
 					while (!waitReadyForFallenDistributionSemaphore.tryAcquire(
-							qty - 1, 5000,
-							TimeUnit.MILLISECONDS)) {
+							qty - 1, 5000, TimeUnit.MILLISECONDS)) {
 						logger.info("Waiting for "
 								+ waitReadyForFallenDistributionSemaphore
 										.availablePermits()
@@ -148,16 +163,15 @@ public class NotificationsAnalyzer extends Thread {
 					processor.distributeSignals(toDistribute);
 					logger.info("Finished fallen node distribution");
 
-					// Tell everyone that distribution finished.
+					// Tell everyone that this node distribution finished.
 					connection
 							.broadcastMessage(new SignalMessage(
 									connection.getMyAddress(),
 									SignalMessageType.FINISHED_FALLEN_NODE_REDISTRIBUTION));
 
 					// Wait for all the nodes to distribute
-					while (!waitFallenDistributionSemaphore.tryAcquire(
-							qty - 1, 3000,
-							TimeUnit.MILLISECONDS)) {
+					while (!waitFallenDistributionSemaphore.tryAcquire(qty - 1,
+							3000, TimeUnit.MILLISECONDS)) {
 						logger.info("Waiting for "
 								+ waitFallenDistributionSemaphore
 										.availablePermits()
@@ -165,7 +179,7 @@ public class NotificationsAnalyzer extends Thread {
 					}
 					waitFallenDistributionSemaphore.drainPermits();
 					logger.info("System recovered from node fallen");
-					
+
 					// Find requests that had aborted cause a node fell.
 					// Timestamp is added because old results may arrive, so
 					// they are discarted

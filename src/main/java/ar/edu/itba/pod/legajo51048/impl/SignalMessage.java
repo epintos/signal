@@ -26,18 +26,22 @@ public class SignalMessage implements Serializable {
 	private int requestId;
 	private Backup backup;
 	private List<Backup> backupList;
-	private Address otherAddress;
 	private long timestamp;
 
-	public SignalMessage(Signal signal) {
-		this.signal = signal;
-	}
-
-	public SignalMessage(Signal signal, String type) {
-		this.signal = signal;
-		this.type = type;
-	}
-
+	/**
+	 * Used for sending FIND_SIMILAR to messages
+	 * 
+	 * @param signal
+	 *            Signal to analyze
+	 * @param address
+	 *            From node address
+	 * @param requestId
+	 *            Request id
+	 * @param timestamp
+	 *            Request timestamp
+	 * @param type
+	 *            FIND_SIMILAR_RESULT
+	 */
 	public SignalMessage(Signal signal, Address address, int requestId,
 			long timestamp, String type) {
 		this.signal = signal;
@@ -47,35 +51,20 @@ public class SignalMessage implements Serializable {
 		this.timestamp = timestamp;
 	}
 
-	public SignalMessage(Address address, Signal signal, String type) {
-		this.signal = signal;
-		this.address = address;
-		this.type = type;
-	}
-
-	public SignalMessage(Address address, Address otherAddress, String type) {
-		this.address = address;
-		this.type = type;
-		this.otherAddress = otherAddress;
-	}
-
-	public SignalMessage(Address address, String type, List<Backup> backupList) {
-		this.backupList = backupList;
-		this.address = address;
-		this.type = type;
-	}
-
-	public SignalMessage(Address address, String type) {
-		this.address = address;
-		this.type = type;
-	}
-
-	public SignalMessage(Address address, Backup backup, String type) {
-		this.address = address;
-		this.backup = backup;
-		this.type = type;
-	}
-
+	/**
+	 * Used to distribute a result.
+	 * 
+	 * @param address
+	 *            Principal node address
+	 * @param result
+	 *            Result
+	 * @param id
+	 *            Request id
+	 * @param type
+	 *            FIND_SIMILAR_RESULT
+	 * @param timestamp
+	 *            Timestamp of the request of this result
+	 */
 	public SignalMessage(Address address, Result result, int id, String type,
 			long timestamp) {
 		this.result = result;
@@ -85,6 +74,78 @@ public class SignalMessage implements Serializable {
 		this.requestId = id;
 	}
 
+	/**
+	 * Used for sending a signal and it's ACK
+	 * 
+	 * @param address
+	 *            When sending a signals, this address corresponds to from node
+	 * @param signal
+	 *            Signal to add
+	 * @param type
+	 *            ADD_SIGNAL or ADD_SIGNAL_ACK
+	 */
+	public SignalMessage(Address address, Signal signal, String type) {
+		this.signal = signal;
+		this.address = address;
+		this.type = type;
+	}
+
+	/**
+	 * Used for distributing backups.
+	 * 
+	 * @param address
+	 *            When sending backups, this address corresponds to from node
+	 * @param type
+	 *            ADD_BACK_UPS or ADD_BACK_UPS_ACK
+	 * @param backupList
+	 *            Backups sent
+	 */
+	public SignalMessage(Address address, String type, List<Backup> backupList) {
+		this.backupList = backupList;
+		this.address = address;
+		this.type = type;
+	}
+
+	/**
+	 * Used when a new node id added or a node falls
+	 * 
+	 * @param address
+	 *            Address of the node fell or added
+	 * @param type
+	 *            BYE_NODE, NEW_NODE or IM_READY
+	 */
+	public SignalMessage(Address address, String type) {
+		this.address = address;
+		this.type = type;
+	}
+
+	/**
+	 * Used for distributing a backup
+	 * 
+	 * @param address
+	 *            When sending a backup, this address corresponds to from node
+	 * @param backup
+	 *            Backup sent
+	 * @param type
+	 *            ADD_BACK_UP or ADD_BACKUP_ACK
+	 */
+	public SignalMessage(Address address, Backup backup, String type) {
+		this.address = address;
+		this.backup = backup;
+		this.type = type;
+	}
+
+	/**
+	 * Used for distributing signals or change a signal owner.
+	 * 
+	 * @param address
+	 *            When sending signals, this address corresponds to from, else
+	 *            to signal owner.
+	 * @param signals
+	 *            Signals distributed
+	 * @param type
+	 *            ADD_SIGNALS, ADD_SIGNALS_ACK or CHANGE_SIGNALS_OWNER
+	 */
 	public SignalMessage(Address address, List<Signal> signals, String type) {
 		this.type = type;
 		this.signals = signals;
@@ -121,10 +182,6 @@ public class SignalMessage implements Serializable {
 
 	public List<Backup> getBackupList() {
 		return backupList;
-	}
-
-	public Address getOtherAddress() {
-		return otherAddress;
 	}
 
 	public long getTimestamp() {

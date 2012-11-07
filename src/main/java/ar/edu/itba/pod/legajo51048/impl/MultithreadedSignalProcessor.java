@@ -243,8 +243,8 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	/******************** FIND SIMILAR AUXILIARY METHODS ********************/
 
 	/**
-	 * Find similars to signal and returns the Result to the node that send the
-	 * order.
+	 * Find similars signals to signal and returns the Result to the node that
+	 * send the order.
 	 * 
 	 * @param from
 	 *            Node that send the find similar request
@@ -687,12 +687,17 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	/**
 	 * 
-	 * @return True if I'm connected to a cluster
+	 * @return True if this node is connected to a cluster
 	 */
 	private boolean connected() {
-		return this.members != null;
+		return this.connection != null;
 	}
 
+	/**
+	 * Get this node address in the cluster
+	 * 
+	 * @return Address
+	 */
 	private Address getMyAddress() {
 		return connection.getMyAddress();
 	}

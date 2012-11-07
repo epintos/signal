@@ -22,7 +22,7 @@ public class FindRequest {
 	// Nodes that are included in the request
 	private List<Address> addresses;
 
-	// Quantity of nodes in the request
+	// Quantity of nodes in the request (doesn't include the principal node)
 	private AtomicInteger qty;
 
 	private Semaphore semaphore;
@@ -36,10 +36,10 @@ public class FindRequest {
 	// Request id
 	private int requestId;
 
-	// Request original timestamp
+	// Request timestamp
 	private long timestamp;
 
-	// If true, then a problem happened so the principal node must recalculate
+	// If true, then a problem happened and the principal node must recalculate
 	// his results
 	private boolean retry = false;
 
@@ -49,6 +49,7 @@ public class FindRequest {
 			Semaphore semaphore, long timestamp) {
 		this.addresses = addresses;
 		this.logger = Logger.getLogger("FindRequest");
+
 		// Remove the principal node
 		this.qty = new AtomicInteger(addresses.size() - 1);
 		this.requestId = requestId;
@@ -58,22 +59,17 @@ public class FindRequest {
 		this.timestamp = timestamp;
 	}
 
-	public List<Address> getAddresses() {
-		return addresses;
-	}
-
-	public Semaphore getSemaphore() {
-		return semaphore;
-	}
-
-	public List<Result> getResults() {
-		return results;
-	}
-
-	public int getQty() {
-		return qty.get();
-	}
-
+	/**
+	 * Adds a result from address. If the timestamp isn't equal to this request
+	 * timestamp, then it's an old result that arrived late, so it is discarted.
+	 * 
+	 * @param result
+	 *            Result
+	 * @param address
+	 *            Address of the node that send the result
+	 * @param timestamp
+	 *            Timestamp of the request
+	 */
 	public void addResult(Result result, Address address, long timestamp) {
 		if (timestamp != this.timestamp) {
 			logger.warning("Old result arriving");
@@ -85,6 +81,14 @@ public class FindRequest {
 		logger.info("Adding result of " + address);
 	}
 
+	/**
+	 * A problem ocurred, so this request must be restarted.
+	 * 
+	 * @param newAddresses
+	 *            New members of the request
+	 * @param timestamp
+	 *            New timestamp of the request
+	 */
 	public void restart(List<Address> newAddresses, long timestamp) {
 		synchronized (this) {
 			this.semaphore.drainPermits();
@@ -110,6 +114,22 @@ public class FindRequest {
 
 	public long getTimestamp() {
 		return this.timestamp;
+	}
+
+	public List<Address> getAddresses() {
+		return addresses;
+	}
+
+	public Semaphore getSemaphore() {
+		return semaphore;
+	}
+
+	public List<Result> getResults() {
+		return results;
+	}
+
+	public int getQty() {
+		return qty.get();
 	}
 
 }

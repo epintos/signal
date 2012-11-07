@@ -10,16 +10,32 @@ import org.jgroups.Address;
 
 import ar.edu.itba.pod.api.Signal;
 
+/**
+ * Worker that analyzes the acknowledges/answers of a node
+ * 
+ * @author Esteban G. Pintos
+ * 
+ */
 public class AcknowledgesAnalyzer extends Thread {
 	private AtomicBoolean finishedAnalyzer = new AtomicBoolean(false);
 	private final BlockingQueue<SignalMessage> acknowledges;
 	private final BlockingQueue<Signal> sendSignals;
 	private final BlockingQueue<Backup> sendBackups;
 	private final ConcurrentMap<Integer, FindRequest> requests;
+
+	// Semaphore to wait for everyone to be ready for distributing when a node
+	// fell
+	private final Semaphore waitReadyForFallenDistributionSemaphore;
+
+	// Semaphore to wait for everyone to finish distributing when a node
+	// fell
+	private final Semaphore waitFallenDistributionSemaphore;
+
+	// Semaphore to wait for everyone to finish distributing when a new node
+	// joins
+	private final Semaphore waitNewDistributionSemaphore;
+	
 	private Connection connection;
-	private Semaphore waitReadyForFallenDistributionSemaphore;
-	private Semaphore waitFallenDistributionSemaphore;
-	private Semaphore waitNewDistributionSemaphore;
 	private Logger logger;
 
 	public AcknowledgesAnalyzer(BlockingQueue<SignalMessage> acknowledges,
@@ -52,7 +68,8 @@ public class AcknowledgesAnalyzer extends Thread {
 
 				switch (acknowledge.getType()) {
 				case SignalMessageType.FIND_SIMILAR_RESULT:
-					FindRequest request = requests.get(acknowledge.getRequestId());
+					FindRequest request = requests.get(acknowledge
+							.getRequestId());
 					request.addResult(acknowledge.getResult(),
 							acknowledge.getAddress(),
 							acknowledge.getTimestamp());
@@ -69,6 +86,7 @@ public class AcknowledgesAnalyzer extends Thread {
 						logger.warn("esto no deberia pasar "
 								+ SignalMessageType.ADD_SIGNALS_ACK);
 					}
+
 					// Tell everyone that some backup owners have changed
 					Address signalOwner = acknowledge.getAddress();
 					connection.broadcastMessage(new SignalMessage(signalOwner,
@@ -100,7 +118,6 @@ public class AcknowledgesAnalyzer extends Thread {
 				case SignalMessageType.FINISHED_NEW_NODE_REDISTRIBUTION:
 					waitNewDistributionSemaphore.release();
 					break;
-
 				}
 			} catch (InterruptedException e) {
 			}

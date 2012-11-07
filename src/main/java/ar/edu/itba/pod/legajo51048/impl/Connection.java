@@ -14,7 +14,7 @@ import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 
 /**
- * Class that represents a channel connection with Jgroup
+ * Class that represents a channel connection with Jgroup.
  * 
  * @author Esteban G. Pintos
  * 
@@ -22,6 +22,8 @@ import org.jgroups.View;
 public class Connection extends ReceiverAdapter {
 	private JChannel channel;
 	private String clusterName = null;
+
+	// Users in the channel
 	private Set<Address> users = new HashSet<Address>();
 	private MultithreadedSignalProcessor processor;
 	private Logger logger;
@@ -41,11 +43,11 @@ public class Connection extends ReceiverAdapter {
 		try {
 			channel.connect(clusterName);
 			channel.setReceiver(this);
+
 			// Notifiy all that i'm ready to receive orders.
 			broadcastMessage(new SignalMessage(getMyAddress(),
 					SignalMessageType.IM_READY));
-			logger.info("Node connected to '" + clusterName
-					+ "'. Ready to receive");
+			logger.info("Node connected to '" + clusterName);
 			users.addAll(getMembers());
 		} catch (Exception e) {
 		}
@@ -55,6 +57,14 @@ public class Connection extends ReceiverAdapter {
 		this.sendMessageTo(null, obj);
 	}
 
+	/**
+	 * Sends a message to an address
+	 * 
+	 * @param address
+	 *            Destination address
+	 * @param obj
+	 *            Object being send
+	 */
 	public void sendMessageTo(Address address, Object obj) {
 		try {
 			this.channel.send(new Message(address, obj));
@@ -71,10 +81,16 @@ public class Connection extends ReceiverAdapter {
 		}
 	}
 
+	/**
+	 * Search for fallen nodes and notify the node of this.
+	 * 
+	 * @param members
+	 *            Members in the cluster
+	 */
 	@SuppressWarnings("unchecked")
-	private void searchFallenNode(List<Address> newMembers) {
+	private void searchFallenNode(List<Address> members) {
 		Collection<Address> disjunction = CollectionUtils.disjunction(users,
-				newMembers);
+				members);
 		for (Address address : disjunction) {
 			processor.addNotification(new SignalMessage(address,
 					SignalMessageType.BYE_NODE));
@@ -82,10 +98,16 @@ public class Connection extends ReceiverAdapter {
 		users.removeAll(disjunction);
 	}
 
+	/**
+	 * Search for new nodes and adds them to the users list.
+	 * 
+	 * @param members
+	 *            Members in the cluster
+	 */
 	@SuppressWarnings("unchecked")
-	private void searchNewNode(List<Address> newMembers) {
-		Collection<Address> disjunction = CollectionUtils.disjunction(
-				newMembers, users);
+	private void searchNewNode(List<Address> members) {
+		Collection<Address> disjunction = CollectionUtils.disjunction(members,
+				users);
 		users.addAll(disjunction);
 	}
 
@@ -104,7 +126,7 @@ public class Connection extends ReceiverAdapter {
 			processor.addBackup(message.getAddress(), message.getBackup());
 			break;
 		case SignalMessageType.ADD_BACK_UPS:
-			processor.addBackups(msg.getSrc(), message.getBackupList());
+			processor.addBackups(message.getAddress(), message.getBackupList());
 			break;
 		case SignalMessageType.CHANGE_SIGNALS_OWNER:
 			if (!myAddress.equals(message.getAddress())) {
@@ -112,22 +134,11 @@ public class Connection extends ReceiverAdapter {
 						message.getAddress(), message.getSignals());
 			}
 			break;
+
+		/** For acknowledges **/
 		case SignalMessageType.FIND_SIMILAR_RESULT:
 			processor.addAcknowledge(message);
 			break;
-		case SignalMessageType.FIND_SIMILAR:
-			if (!myAddress.equals(msg.getSrc())) {
-				processor.addNotification(message);
-			}
-			break;
-		case SignalMessageType.IM_READY:
-			if (!message.getAddress().equals(myAddress)) {
-				processor.addNotification(new SignalMessage(message
-						.getAddress(), SignalMessageType.NEW_NODE));
-			}
-			break;
-
-		/** For acknowledges **/
 		case SignalMessageType.FINISHED_FALLEN_NODE_REDISTRIBUTION:
 			if (!msg.getSrc().equals(myAddress)) {
 				processor.addAcknowledge(message);
@@ -155,33 +166,71 @@ public class Connection extends ReceiverAdapter {
 		case SignalMessageType.ADD_SIGNALS_ACK:
 			processor.addAcknowledge(message);
 			break;
+
 		/** For notifications **/
+		case SignalMessageType.FIND_SIMILAR:
+			if (!myAddress.equals(msg.getSrc())) {
+				processor.addNotification(message);
+			}
+			break;
+		case SignalMessageType.IM_READY:
+			if (!message.getAddress().equals(myAddress)) {
+				processor.addNotification(new SignalMessage(message
+						.getAddress(), SignalMessageType.NEW_NODE));
+			}
+			break;
 		default:
 			processor.addNotification(message);
 			break;
 		}
 	}
 
+	/**
+	 * Disconnects channel
+	 */
 	public void disconnect() {
 		channel.disconnect();
 	}
 
+	/**
+	 * Close channel
+	 */
 	public void close() {
 		channel.close();
 	}
 
+	/**
+	 * Get cluster name
+	 * 
+	 * @return Cluster name
+	 */
 	public String getClusterName() {
 		return this.clusterName;
 	}
 
+	/**
+	 * Get members of the cluster
+	 * 
+	 * @return List containing members of the cluster
+	 */
 	public List<Address> getMembers() {
 		return channel.getView().getMembers();
 	}
 
+	/**
+	 * Get members quantity in the cluster
+	 * 
+	 * @return Members quantity
+	 */
 	public int getMembersQty() {
 		return getMembers().size();
 	}
 
+	/**
+	 * Get my address in the cluster
+	 * 
+	 * @return My address
+	 */
 	public Address getMyAddress() {
 		return channel.getAddress();
 	}
