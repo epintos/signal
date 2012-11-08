@@ -272,8 +272,12 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 			long timestamp) {
 		logger.debug(getMyAddress() + " findingSimilars...");
 		Result result = findSimilarToAux(signal);
-		connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
-				result, id, SignalMessageType.FIND_SIMILAR_RESULT, timestamp));
+
+		if (getMyAddress() != null) {
+			connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
+					result, id, SignalMessageType.FIND_SIMILAR_RESULT,
+					timestamp));
+		}
 		logger.debug(getMyAddress() + " finishedFindingSimilars....");
 	}
 
