@@ -270,15 +270,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	 */
 	public void findMySimilars(Address from, Signal signal, int id,
 			long timestamp) {
-		logger.debug(getMyAddress() + " findingSimilars...");
 		Result result = findSimilarToAux(signal);
-
-		if (getMyAddress() != null) {
+		
+		// Exit could be called in the middle of this, and the principal node won't wait
+		// for this result, so it has no sense to send this message.
+		if (connected()) {
 			connection.sendMessageTo(from, new SignalMessage(getMyAddress(),
 					result, id, SignalMessageType.FIND_SIMILAR_RESULT,
 					timestamp));
 		}
-		logger.debug(getMyAddress() + " finishedFindingSimilars....");
 	}
 
 	/**
