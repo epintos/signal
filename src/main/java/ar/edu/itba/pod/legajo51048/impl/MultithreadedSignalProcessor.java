@@ -679,11 +679,15 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 	}
 
 	/**
-	 * Get this node address in the cluster
+	 * Get this node address in the cluster, or null if it is not connected.
 	 * 
 	 * @return Address
 	 */
 	private Address getMyAddress() {
-		return connection.getMyAddress();
+		if (connected()) {
+			return connection.getMyAddress();
+		} else {
+			return null;
+		}
 	}
 }
