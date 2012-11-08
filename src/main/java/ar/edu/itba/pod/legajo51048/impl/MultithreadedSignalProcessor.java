@@ -167,10 +167,14 @@ public class MultithreadedSignalProcessor implements SPNode, SignalProcessor {
 
 	@Override
 	public NodeStats getStats() throws RemoteException {
-		return new NodeStats(connected() ? "cluster "
-				+ connection.getClusterName() : "standalone",
-				receivedSignals.longValue(), signals.size(), backups.size(),
-				connected() ? degradedMode.get() : true);
+		return new NodeStats(
+				connected() ? "cluster " + connection.getClusterName()
+						: "standalone",
+				receivedSignals.longValue(),
+				signals.size(),
+				backups.size(),
+				connected() ? (getMembersQty() == 1 ? true : degradedMode.get())
+						: true);
 	}
 
 	/**
