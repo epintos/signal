@@ -7,7 +7,7 @@ Final project for Distributed Objects Programming course at ITBA. Year 2012.
 
 Instructions:
 
-- Executre the following in the project root:
+- Execute the following in the project root:
 	- mvn package
 	- mvn assembly:single
 	
